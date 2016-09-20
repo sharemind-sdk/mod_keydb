@@ -6,6 +6,7 @@
 .directory
 *.marks
 *~
+.*
 Makefile
 /xcode-build/
 /b/
