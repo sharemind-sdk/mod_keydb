@@ -18,9 +18,11 @@
  */
 
 #include <cassert>
+#include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
 #include <sharemind/libmodapi/api_0x1.h>
 #include <sharemind/SyscallsCommon.h>
+#include <sstream>
 #include "ModuleData.h"
 #include "Syscalls.h"
 
@@ -34,6 +36,13 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) __attribute__ ((visibility("default")));
 SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
     assert(c);
 
+    const SharemindModuleApi0x1Facility * flog = c->getModuleFacility(c, "Logger");
+    if (!flog || !flog->facility)
+        return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY;
+
+    const LogHard::Logger & logger =
+            *static_cast<const LogHard::Logger *>(flog->facility);
+
     const SharemindModuleApi0x1Facility * fconsensus
             = c->getModuleFacility(c, "ConsensusService");
     if (!fconsensus || !fconsensus->facility)
@@ -43,8 +52,28 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
         static_cast<SharemindConsensusFacility *>(fconsensus->facility);
 
     try {
-        ModuleData * mod = new ModuleData(*consensusFacility); 
-        mod->configuration = std::string(c->conf);
+        ModuleData * mod = new ModuleData(logger, *consensusFacility);
+
+        /* parse configuration
+         * HOST PORT
+         */
+        if (!c->conf) {
+            mod->logger.error() << "No configuration given.";
+            delete mod;
+            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
+        }
+
+        std::istringstream configuration(c->conf);
+        std::string host;
+        unsigned int port;
+        configuration >> host >> port;
+        if (!configuration || !configuration.eof()) {
+            delete mod;
+            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
+        }
+
+        mod->host = host;
+        mod->port = port;
         c->moduleHandle = mod;
         return SHAREMIND_MODULE_API_0x1_OK;
     } catch (...) {
@@ -66,10 +95,13 @@ SHAREMIND_MODULE_API_0x1_DEINITIALIZER(c) {
 #define SAMENAME(f) { #f, &(f) }
 
 SHAREMIND_MODULE_API_0x1_SYSCALL_DEFINITIONS(
-
-    // Consensus service based syscalls:
-    SAMENAME(keydb_set)
-
+    SAMENAME(keydb_connect),
+    SAMENAME(keydb_disconnect),
+    SAMENAME(keydb_set),
+    SAMENAME(keydb_get_size),
+    SAMENAME(keydb_get),
+    SAMENAME(keydb_del),
+    SAMENAME(keydb_scan)
 );
 
 } // extern "C" {

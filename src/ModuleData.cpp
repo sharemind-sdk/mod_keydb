@@ -19,7 +19,8 @@
 
 #include "ModuleData.h"
 
-ModuleData::ModuleData(SharemindConsensusFacility & cf)
-    : consensusFacility(cf)
+ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility & cf)
+    : logger(logger, "[mod_keydb]")
+    , consensusFacility(cf)
 {
 }

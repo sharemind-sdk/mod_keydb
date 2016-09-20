@@ -10,13 +10,18 @@
 #ifndef SHAREMIND_MOD_CONSENSUS_MODULEDATA_H
 #define SHAREMIND_MOD_CONSENSUS_MODULEDATA_H
 
+#include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
 #include <string>
 
 struct __attribute__ ((visibility("internal"))) ModuleData {
-    ModuleData(SharemindConsensusFacility & cf);
+
+    ModuleData(const LogHard::Logger & logger,
+        SharemindConsensusFacility & cf);
+    const LogHard::Logger logger;
     SharemindConsensusFacility &consensusFacility;
-    std::string configuration;
+    std::string host;
+    unsigned int port;
 };
 
 #endif /* SHAREMIND_MOD_CONSENSUS_MODULEDATA_H */
