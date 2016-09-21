@@ -19,9 +19,11 @@
 
 
 #include <cpp_redis/cpp_redis>
+#include <deque>
 #include <future>
 #include <iostream>
 #include <LogHard/Logger.h>
+#include <sharemind/datastoreapi.h>
 #include <sharemind/SyscallsCommon.h>
 #include <sharemind/libmodapi/api_0x1.h>
 #include <string>
@@ -43,7 +45,6 @@
         } \
     } \
     SHAREMIND_EXTERN_C_END
-
 
 using namespace sharemind;
 cpp_redis::redis_client client;
@@ -70,6 +71,26 @@ void callback_debug(const cpp_redis::reply & reply, const LogHard::Logger & logg
     std::ostringstream stream;
     reply_to_stream(reply, stream);
     logger.debug() << "Received a new reply: " << stream.str();
+}
+
+void return_string(SharemindModuleApi0x1SyscallContext * c,
+        SharemindCodeBlock * returnValue,
+        std::string & data)
+{
+        const uint64_t mem_hndl = c->publicAlloc(c, data.size());
+        if (mem_hndl) {
+            void * const ptr = c->publicMemPtrData(c, mem_hndl);
+            memcpy(ptr, data.c_str(), data.size());
+        }
+        returnValue->uint64[0] = mem_hndl;
+}
+
+inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c, const char * ns) {
+        auto * const factory =
+            static_cast<SharemindDataStoreFactory * const>(
+                    c->processFacility(c, "DataStoreFactory"));
+
+        return factory->get_datastore(factory, ns);
 }
 
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 0,
@@ -105,14 +126,14 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
-        mod.logger.info() << "Set with key \"" << key << "\" and value \"" << value << '\"';
+        mod.logger.debug() << "Set with key \"" << key << "\" and value \"" << value << '\"';
 
         auto cb = std::bind(callback_debug, std::placeholders::_1, mod.logger);
 
         client.set(key, value, cb).commit();
     );
 
-SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 0, true, 1, 1,
+SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         (void) args;
 
         if (crefs->size < 1)
@@ -136,29 +157,41 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 0, true, 1, 1,
 
         // store returned data in heap
         std::string *heapString = new std::string(data);
-        assert(refs[0].size == sizeof(heapString));
-        // store pointer to heap in the secrec variable
-        memcpy(refs[0].pData, &heapString, refs[0].size);
+
+        auto * store = getDataStore(c, "keydb_get");
+
+        uint64_t id = 0;
+        std::string id_str;
+        do {
+            id_str = std::to_string(id);
+            ++id;
+        } while (!!store->get(store, id_str.c_str()));
+
+        auto deleter = [](void * p) { delete static_cast<std::string *>(p); };
+        store->set(store, id_str.c_str(), heapString, deleter);
+
+        args[0].uint64[0] = id - 1;
+        mod.logger.debug() << "keydb_get_size " << args[0].uint64[0] << " " << id_str;
+
         // return size of data
         returnValue->uint64[0] = data.size();
     );
 
-SHAREMIND_DEFINE_SYSCALL(keydb_get, 0, false, 1, 1,
-        (void) args;
-
+SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
-        const std::string * data;
-        // pointer to data in heap was saved before
-        assert(crefs[0].size == sizeof(data));
-        // get pointer from secrec
-        memcpy(&data, crefs[0].pData, sizeof(data));
         mod.logger.debug() << "keydb_get";
+
+        auto * store = getDataStore(c, "keydb_get");
+
+        std::string name = std::to_string(args[0].uint64[0]);
+        auto * data = static_cast<std::string *>(store->get(store, name.c_str()));
 
         assert(data);
         // copy data to secrec
         memcpy(refs[0].pData, data->data(), data->size());
+
         // free data from heap
-        delete data;
+        store->remove(store, name.c_str());
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
@@ -170,21 +203,101 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         client.del({key}).commit();
     );
 
-SHAREMIND_DEFINE_SYSCALL(keydb_scan,0,true,0,1,
+struct scan_struct {
+    scan_struct(const std::string & pattern)
+        : pattern{pattern}, cursor{0}
+    { }
+
+    const std::string pattern;
+    std::deque<std::string> que;
+    uint64_t cursor;
+};
+
+SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         (void) args;
         const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
-        (void) mod;
-    );
+        mod.logger.debug() << "keydb_scan";
 
-void return_string(SharemindModuleApi0x1SyscallContext * c, SharemindCodeBlock * returnValue)
-{
-        const std::string data = "sadasd";
-        const uint64_t mem_hndl = c->publicAlloc(c, data.size());
-        if (mem_hndl) {
-            void * const ptr = c->publicMemPtrData(c, mem_hndl);
-            memcpy(ptr, data.c_str(), data.size());
-            returnValue->p[0] = ptr;
+        uint64_t * cl_cursor = static_cast<uint64_t *>(refs[0].pData);
+        assert(cl_cursor);
+
+        auto * store = getDataStore(c, "keydb_scan");
+
+        scan_struct * scan = nullptr;
+        std::string client_cursor;
+        const char * uid = nullptr;
+
+        bool should_scan = true;
+
+        if (!*cl_cursor) {
+            uint64_t id = 1;
+            do {
+                client_cursor = std::to_string(id);
+                ++id;
+            } while (!!store->get(store, client_cursor.c_str()));
+
+            assert(crefs[0].size > 0);
+            const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
+            scan = new scan_struct(pattern);
+            auto deleter = [] (void * p) { delete static_cast<scan_struct *>(p); };
+            uid = client_cursor.c_str();
+            store->set(store, uid, scan, deleter);
+            mod.logger.debug() << "keydb_scan : new cursor (" << uid << ')';
+            *cl_cursor = --id;
+        } else {
+            client_cursor = std::to_string(*cl_cursor);
+            uid = client_cursor.c_str();
+            scan = static_cast<scan_struct *>(store->get(store, uid));
+            mod.logger.debug() << "keydb_scan : old cursor (" << uid << ')';
+            should_scan = scan->cursor != 0;
         }
-        returnValue->uint64[0] = mem_hndl;
-        returnValue[0].uint64[0] = false;
-}
+
+        assert(scan);
+        while (scan->que.empty() && should_scan) {
+            mod.logger.debug() << "keydb_scan : scan";
+            std::promise<cpp_redis::reply> rep;
+            auto fut = rep.get_future();
+            auto cb = [&rep](cpp_redis::reply & reply) {
+                rep.set_value(reply);
+            };
+
+            std::string str_cursor = std::to_string(scan->cursor);
+            mod.logger.debug() << "scan with " << str_cursor;
+            client.send({"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"}, cb).commit();
+
+            auto reply = fut.get();
+            callback_debug(reply, mod.logger);
+
+            auto & parts = reply.as_array();
+            assert(parts.size() == 2);
+            std::istringstream iss(parts[0].as_string());
+            uint64_t new_cursor;
+            iss >> new_cursor;
+
+            // add returned entities to scan_cursor
+            if (!parts[1].is_null()) {
+                auto & items = parts[1].as_array();
+                for (auto & item : items) {
+                    scan->que.push_back(item.as_string());
+                }
+            }
+
+            scan->cursor = new_cursor;
+            mod.logger.debug() << "new cursor " << new_cursor;
+
+            if (!new_cursor) {
+                break;
+            }
+        }
+
+        if (!scan->que.empty()) {
+            mod.logger.debug() << "keydb_scan : return string : " << scan->que.front();
+            return_string(c, returnValue, scan->que.front());
+            scan->que.pop_front();
+        }
+        else if (!should_scan) {
+            *cl_cursor = 0;
+            store->remove(store, uid);
+            mod.logger.debug() << "keydb_scan : del cursor (" << uid << ')';
+        }
+    );
