@@ -101,7 +101,8 @@ SHAREMIND_MODULE_API_0x1_SYSCALL_DEFINITIONS(
     SAMENAME(keydb_get_size),
     SAMENAME(keydb_get),
     SAMENAME(keydb_del),
-    SAMENAME(keydb_scan)
+    SAMENAME(keydb_scan),
+    SAMENAME(keydb_intersection)
 );
 
 } // extern "C" {

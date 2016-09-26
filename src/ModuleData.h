@@ -12,12 +12,19 @@
 
 #include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
+#include <sharemind/libmodapi/api_0x1.h>
 #include <string>
+#include <vector>
 
 struct __attribute__ ((visibility("internal"))) ModuleData {
 
     ModuleData(const LogHard::Logger & logger,
         SharemindConsensusFacility & cf);
+
+    bool intersection(const std::vector<std::string> & keys,
+                      std::vector<std::string> & toDelete,
+                      const SharemindModuleApi0x1SyscallContext * c);
+
     const LogHard::Logger logger;
     SharemindConsensusFacility &consensusFacility;
     std::string host;

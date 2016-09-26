@@ -58,6 +58,12 @@ void scanDB(string pattern) {
     }
 }
 
+bool keydb_intersect() {
+    bool ok;
+    __syscall("keydb_intersection", __return ok);
+    return ok;
+}
+
 void main() {
     keydb_connect();
     string key = "key";
@@ -69,5 +75,6 @@ void main() {
     publish("a2", keydb_get(key));
     keydb_set(key, b);
     scanDB("*");
+    keydb_intersect();
     keydb_disconnect();
 }

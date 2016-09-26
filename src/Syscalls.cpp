@@ -301,3 +301,35 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             mod.logger.debug() << "keydb_scan : del cursor (" << uid << ')';
         }
     );
+
+SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
+        (void) args;
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
+        mod.logger.debug() << "keydb_intersection";
+
+        std::promise<cpp_redis::reply> rep;
+        auto fut = rep.get_future();
+        auto cb = [&rep](cpp_redis::reply & reply) {
+            rep.set_value(reply);
+        };
+
+        client.keys("*", cb).commit();
+        auto reply = fut.get();
+        callback_debug(reply, mod.logger);
+
+        std::vector<std::string> keys;
+        if (reply.is_array()) {
+            auto & replies = reply.as_array();
+            for (auto & r : replies) {
+                keys.push_back(r.as_string());
+            }
+        }
+        std::vector<std::string> toBeDeleted;
+        if (mod.intersection(keys, toBeDeleted, c)) {
+            client.del(toBeDeleted).sync_commit();
+            returnValue->uint64[0] = true;
+        }
+        returnValue->uint64[0] = false;
+        // TODO: maybe should do some other consensus here
+        // for example to make sure all servers are in the same spot
+    );

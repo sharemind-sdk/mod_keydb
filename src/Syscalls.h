@@ -25,6 +25,7 @@
 
 SHAREMIND_DECLARE_SYSCALL(keydb_connect);
 SHAREMIND_DECLARE_SYSCALL(keydb_disconnect);
+SHAREMIND_DECLARE_SYSCALL(keydb_intersection);
 
 SHAREMIND_DECLARE_SYSCALL(keydb_set);
 SHAREMIND_DECLARE_SYSCALL(keydb_get_size);
