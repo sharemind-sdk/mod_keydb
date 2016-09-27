@@ -28,6 +28,7 @@
 #include <sharemind/libmodapi/api_0x1.h>
 #include <string>
 #include <sstream>
+#include "Intersection.h"
 #include "ModuleData.h"
 
 #define SHAREMIND_DEFINE_SYSCALL(name,nargs,rv,nrefs,ncrefs,code) \
@@ -325,7 +326,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
             }
         }
         std::vector<std::string> toBeDeleted;
-        if (mod.intersection(keys, toBeDeleted, c)) {
+        if (intersection(keys, toBeDeleted, c)) {
             client.del(toBeDeleted).sync_commit();
             returnValue->uint64[0] = true;
         }

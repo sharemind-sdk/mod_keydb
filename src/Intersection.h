@@ -17,12 +17,19 @@
  * For further information, please contact us at sharemind@cyber.ee.
  */
 
-#include "Intersection.h"
-#include "ModuleData.h"
+#ifndef SHAREMIND_MOD_KEYDB_INTERSECTION_H
+#define SHAREMIND_MOD_KEYDB_INTERSECTION_H
 
-ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility & cf)
-    : logger(logger, "[mod_keydb]")
-    , consensusFacility(cf)
-{
-    consensusFacility.add_operation_type(&consensusFacility, &intersectionOperation);
-}
+#include <sharemind/libconsensusservice.h>
+#include <sharemind/libmodapi/api_0x1.h>
+#include <sharemind/visibility.h>
+#include <string>
+#include <vector>
+
+extern SharemindOperationType const intersectionOperation;
+
+bool intersection(const std::vector<std::string> & keys,
+        std::vector<std::string> & toDelete,
+        const SharemindModuleApi0x1SyscallContext * c)
+    SHAREMIND_VISIBILITY_HIDDEN;
+#endif /* SHAREMIND_MOD_KEYDB_INTERSECTION_H */
