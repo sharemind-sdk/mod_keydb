@@ -10,6 +10,7 @@
 #ifndef SHAREMIND_MOD_KEYDB_MODULEDATA_H
 #define SHAREMIND_MOD_KEYDB_MODULEDATA_H
 
+#include <cpp_redis/redis_client.hpp>
 #include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
 #include <string>
@@ -23,6 +24,7 @@ struct __attribute__ ((visibility("internal"))) ModuleData {
     SharemindConsensusFacility &consensusFacility;
     std::string host;
     unsigned int port;
+    cpp_redis::redis_client client;
 };
 
 #endif /* SHAREMIND_MOD_KEYDB_MODULEDATA_H */

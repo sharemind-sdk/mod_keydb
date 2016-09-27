@@ -31,12 +31,14 @@
 #include "Intersection.h"
 #include "ModuleData.h"
 
+using namespace cpp_redis;
+
 #define SHAREMIND_DEFINE_SYSCALL(name,nargs,rv,nrefs,ncrefs,code) \
     SHAREMIND_EXTERN_C_BEGIN \
     SHAREMIND_MODULE_API_0x1_SYSCALL(name, args, num_args, refs, crefs, \
                                      returnValue, c) \
     { \
-        if (!SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, refs, crefs, returnValue)) \
+        if (!sharemind::SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, refs, crefs, returnValue)) \
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL; \
         try { \
             code \
@@ -47,8 +49,7 @@
     } \
     SHAREMIND_EXTERN_C_END
 
-using namespace sharemind;
-cpp_redis::redis_client client;
+namespace {
 
 void reply_to_stream(const cpp_redis::reply & reply, std::ostringstream & stream) {
     if (reply.is_null()) {
@@ -94,12 +95,14 @@ inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c
         return factory->get_datastore(factory, ns);
 }
 
+} /* namespace { */
+
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 0,
         (void)args;
 
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
         try {
-            client.connect(mod.host, mod.port);
+            mod.client.connect(mod.host, mod.port);
         } catch (cpp_redis::redis_error & er) {
             mod.logger.error() << er.what();
             throw;
@@ -109,11 +112,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 0,
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
         (void)args;
 
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
-        (void) mod;
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
 
-        client.sync_commit();
-        client.disconnect();
+        mod.client.sync_commit();
+        mod.client.disconnect();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
@@ -122,7 +124,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         if (crefs->size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
@@ -131,7 +133,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
 
         auto cb = std::bind(callback_debug, std::placeholders::_1, mod.logger);
 
-        client.set(key, value, cb).commit();
+        mod.client.set(key, value, cb).commit();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -140,7 +142,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         if (crefs->size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1u);
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
@@ -151,7 +153,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
             rep.set_value(reply);
         };
 
-        client.get({key}, cb).commit();
+        mod.client.get({key}, cb).commit();
         auto reply = fut.get();
         callback_debug(reply, mod.logger);
         const std::string & data = reply.as_string();
@@ -199,9 +201,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         (void) args;
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1u);
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
-        (void) mod;
-        client.del({key}).commit();
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
+        mod.client.del({key}).commit();
     );
 
 struct scan_struct {
@@ -216,7 +217,7 @@ struct scan_struct {
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         (void) args;
-        const auto & mod = *static_cast<const ModuleData * const>(c->moduleHandle);
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
         mod.logger.debug() << "keydb_scan";
 
         uint64_t * cl_cursor = static_cast<uint64_t *>(refs[0].pData);
@@ -264,7 +265,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
 
             std::string str_cursor = std::to_string(scan->cursor);
             mod.logger.debug() << "scan with " << str_cursor;
-            client.send({"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"}, cb).commit();
+            mod.client.send({"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"}, cb).commit();
 
             auto reply = fut.get();
             callback_debug(reply, mod.logger);
@@ -314,7 +315,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
             rep.set_value(reply);
         };
 
-        client.keys("*", cb).commit();
+        mod.client.keys("*", cb).commit();
         auto reply = fut.get();
         callback_debug(reply, mod.logger);
 
@@ -327,10 +328,11 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         }
         std::vector<std::string> toBeDeleted;
         if (intersection(keys, toBeDeleted, c)) {
-            client.del(toBeDeleted).sync_commit();
-            returnValue->uint64[0] = true;
+            mod.logger.debug() << "keys to delete: " << toBeDeleted.size();
+            mod.client.del(toBeDeleted).sync_commit();
+            returnValue->uint64[0] = 1;
         }
-        returnValue->uint64[0] = false;
+        returnValue->uint64[0] = 0;
         // TODO: maybe should do some other consensus here
         // for example to make sure all servers are in the same spot
     );
