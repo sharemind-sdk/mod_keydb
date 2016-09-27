@@ -95,6 +95,19 @@ inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c
         return factory->get_datastore(factory, ns);
 }
 
+template<typename Func, typename... Args>
+cpp_redis::reply makeRequest(ModuleData & mod, Func && fun, Args && ...args) {
+        std::promise<cpp_redis::reply> rep;
+        auto fut = rep.get_future();
+        auto cb = [&rep](cpp_redis::reply & reply) {
+            rep.set_value(reply);
+        };
+        (mod.client.*fun)(std::forward<Args>(args)..., cb).commit();
+        auto reply = fut.get();
+        callback_debug(reply, mod.logger);
+        return reply;
+}
+
 } /* namespace { */
 
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 0,
@@ -130,10 +143,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
         mod.logger.debug() << "Set with key \"" << key << "\" and value \"" << value << '\"';
-
-        auto cb = std::bind(callback_debug, std::placeholders::_1, mod.logger);
-
-        mod.client.set(key, value, cb).commit();
+        makeRequest(mod, &redis_client::set, key, value);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -147,15 +157,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        std::promise<cpp_redis::reply> rep;
-        auto fut = rep.get_future();
-        auto cb = [&rep](cpp_redis::reply & reply) {
-            rep.set_value(reply);
-        };
-
-        mod.client.get({key}, cb).commit();
-        auto reply = fut.get();
-        callback_debug(reply, mod.logger);
+        auto reply = makeRequest(mod, &redis_client::get, key);
         const std::string & data = reply.as_string();
 
         // store returned data in heap
@@ -257,18 +259,12 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         assert(scan);
         while (scan->que.empty() && should_scan) {
             mod.logger.debug() << "keydb_scan : scan";
-            std::promise<cpp_redis::reply> rep;
-            auto fut = rep.get_future();
-            auto cb = [&rep](cpp_redis::reply & reply) {
-                rep.set_value(reply);
-            };
 
             std::string str_cursor = std::to_string(scan->cursor);
             mod.logger.debug() << "scan with " << str_cursor;
-            mod.client.send({"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"}, cb).commit();
 
-            auto reply = fut.get();
-            callback_debug(reply, mod.logger);
+            auto reply = makeRequest(mod, &redis_client::send,
+                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"});
 
             auto & parts = reply.as_array();
             assert(parts.size() == 2);
@@ -309,15 +305,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         auto & mod = *static_cast<ModuleData * const>(c->moduleHandle);
         mod.logger.debug() << "keydb_intersection";
 
-        std::promise<cpp_redis::reply> rep;
-        auto fut = rep.get_future();
-        auto cb = [&rep](cpp_redis::reply & reply) {
-            rep.set_value(reply);
-        };
-
-        mod.client.keys("*", cb).commit();
-        auto reply = fut.get();
-        callback_debug(reply, mod.logger);
+        auto reply = makeRequest(mod, &redis_client::keys, "*");
 
         std::vector<std::string> keys;
         if (reply.is_array()) {
