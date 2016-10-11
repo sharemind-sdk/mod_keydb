@@ -18,10 +18,10 @@
 
 struct __attribute__ ((visibility("internal"))) ModuleData {
     ModuleData(const LogHard::Logger & logger,
-        SharemindConsensusFacility & cf);
+        SharemindConsensusFacility * cf);
 
     const LogHard::Logger logger;
-    SharemindConsensusFacility &consensusFacility;
+    SharemindConsensusFacility *consensusFacility;
     std::string host;
     unsigned int port;
     cpp_redis::redis_client client;

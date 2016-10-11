@@ -20,9 +20,10 @@
 #include "Intersection.h"
 #include "ModuleData.h"
 
-ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility & cf)
+ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility * cf)
     : logger(logger, "[mod_keydb]")
     , consensusFacility(cf)
 {
-    consensusFacility.add_operation_type(&consensusFacility, &intersectionOperation);
+    if (consensusFacility)
+        consensusFacility->add_operation_type(consensusFacility, &intersectionOperation);
 }

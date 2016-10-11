@@ -200,9 +200,14 @@ bool intersection(const std::vector<std::string> & keys,
                   std::vector<std::string> & toDelete,
                   const SharemindModuleApi0x1SyscallContext * c)
 {
+    auto & mod = *static_cast<const ModuleData *>(c->moduleHandle);
+    if (!mod.consensusFacility) {
+        mod.logger.warning() << "Doing intersection without consensus service is a NOP!";
+        return true;
+    }
+
     using CPF = SharemindProcessFacility;
     auto * processFacility = static_cast<const CPF *>(c->process_internal);
-    auto & mod = *static_cast<const ModuleData *>(c->moduleHandle);
 
     auto globalIdSize = processFacility->globalIdSize(processFacility);
     mod.logger.debug() << "keydb_intersection ";
@@ -217,7 +222,7 @@ bool intersection(const std::vector<std::string> & keys,
     auto proposal = serialize(keys, proposalSize, globalId, globalIdSize);
     ConsensusData conData(keys, toDelete);
     SharemindConsensusFacilityError err;
-    err = mod.consensusFacility.blocking_propose(&mod.consensusFacility,
+    err = mod.consensusFacility->blocking_propose(mod.consensusFacility,
                                                  "keydb_intersection",
                                                  proposalSize,
                                                  proposal.get(),

@@ -45,14 +45,15 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
 
     const SharemindModuleApi0x1Facility * fconsensus
             = c->getModuleFacility(c, "ConsensusService");
-    if (!fconsensus || !fconsensus->facility)
-        return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY;
 
-    SharemindConsensusFacility * consensusFacility =
-        static_cast<SharemindConsensusFacility *>(fconsensus->facility);
+    SharemindConsensusFacility * consensusFacility = nullptr;
+    if (fconsensus && fconsensus->facility) {
+        consensusFacility =
+            static_cast<SharemindConsensusFacility *>(fconsensus->facility);
+    }
 
     try {
-        ModuleData * mod = new ModuleData(logger, *consensusFacility);
+        ModuleData * mod = new ModuleData(logger, consensusFacility);
 
         /* parse configuration
          * HOST PORT
