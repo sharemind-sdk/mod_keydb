@@ -23,6 +23,7 @@
 #include <future>
 #include <iostream>
 #include <LogHard/Logger.h>
+#include <set>
 #include <sharemind/datastoreapi.h>
 #include <sharemind/SyscallsCommon.h>
 #include <sharemind/libmodapi/api_0x1.h>
@@ -296,22 +297,42 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         mod.logger.debug() << "keydb_intersection";
         auto & client = getClient(c);
 
-        auto reply = makeRequest(client, &redis_client::keys, "*");
+        std::set<std::string> keys;
+        uint64_t cursor = 0;
+        std::string str_cursor = "0";
+        do {
+            auto reply = makeRequest(getClient(c), &redis_client::send,
+                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", "*", "COUNT", "3"});
+            auto & parts = reply.as_array();
+            str_cursor = parts[0].as_string();
+            std::istringstream iss(str_cursor);
+            iss >> cursor;
 
-        std::vector<std::string> keys;
-        if (reply.is_array()) {
-            auto & replies = reply.as_array();
+            auto & replies = parts[1].as_array();
             for (auto & r : replies) {
-                keys.push_back(r.as_string());
+                keys.emplace(r.as_string());
             }
+        } while (cursor != 0);
+
+        std::vector<std::string> orderedKeys;
+        for (auto it = keys.begin(); it != keys.end(); ++it) {
+            orderedKeys.emplace_back(*it);
+            keys.erase(it);
         }
+        mod.logger.debug() << "Keys: ";
+        for (auto & s : orderedKeys) {
+            mod.logger.debug() << s;
+        }
+        mod.logger.debug() << "end";
+
         std::vector<std::string> toBeDeleted;
-        if (intersection(keys, toBeDeleted, c)) {
+        if (intersection(orderedKeys, toBeDeleted, c)) {
             mod.logger.debug() << "keys to delete: " << toBeDeleted.size();
             client.del(toBeDeleted).sync_commit();
             returnValue->uint64[0] = 1;
+        } else {
+            returnValue->uint64[0] = 0;
         }
-        returnValue->uint64[0] = 0;
         // TODO: maybe should do some other consensus here
         // for example to make sure all servers are in the same spot
     );

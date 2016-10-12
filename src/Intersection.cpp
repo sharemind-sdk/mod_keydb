@@ -17,8 +17,8 @@
  * For further information, please contact us at sharemind@cyber.ee.
  */
 
+#include <algorithm>
 #include <LogHard/Logger.h>
-#include <set>
 #include <sharemind/EndianMacros.h>
 #include <sharemind/libconsensusservice.h>
 #include <sharemind/libmodapi/api_0x1.h>
@@ -66,7 +66,7 @@ void deserialize(const SharemindConsensusDatum * proposal, Container & cont) {
         ElementLengthType elementLength;
         memcpy(&elementLength, readPtr, ElementLengthSize);
         readPtr = ptrAdd(readPtr, ElementLengthSize);
-        cont.emplace(std::string(static_cast<const char *>(readPtr), elementLength));
+        cont.emplace_back(std::string(static_cast<const char *>(readPtr), elementLength));
         readPtr = ptrAdd(readPtr, elementLength);
     }
     assert(readPtr == ptrAdd(proposal->data, proposal->size));
@@ -139,7 +139,7 @@ SharemindConsensusResultType execute(const SharemindConsensusDatum * proposals,
     auto & conData =
             *static_cast<ConsensusData *>(callbackPtr);
 
-    std::vector<std::set<std::string>> sets(count);
+    std::vector<std::vector<std::string>> sets(count);
 
     for (size_t i = 0; i < count; ++i) {
         deserialize(proposals + i, sets[i]);
@@ -149,7 +149,8 @@ SharemindConsensusResultType execute(const SharemindConsensusDatum * proposals,
     for (auto & key : conData.keys) {
         bool existsInAll = true;
         for (size_t j = 0; j < count; ++j) {
-            if (!sets[j].count(key)) {
+            // we assume that the keys in the proposal are sorted!
+            if (!std::binary_search(sets[j].begin(), sets[j].end(), key)) {
                 existsInAll = false;
             }
         }
@@ -200,6 +201,7 @@ bool intersection(const std::vector<std::string> & keys,
                   std::vector<std::string> & toDelete,
                   const SharemindModuleApi0x1SyscallContext * c)
 {
+    assert(std::is_sorted(keys.begin(), keys.end()) && "intersection called with unsorted keys");
     auto & mod = *static_cast<const ModuleData *>(c->moduleHandle);
     if (!mod.consensusFacility) {
         mod.logger.warning() << "Doing intersection without consensus service is a NOP!";
