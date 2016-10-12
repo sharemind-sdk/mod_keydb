@@ -1,80 +1,27 @@
 import stdlib;
+import keydb;
+import shared3p_keydb;
 
-struct ScanCursor {
-    uint cursor;
-    string key;
-}
+domain pd_shared3p shared3p;
 
-void keydb_connect() {
-    __syscall ("keydb_connect");
-}
-
-void keydb_disconnect() {
-    __syscall ("keydb_disconnect");
-}
-
-template <type T>
-T[[1]] keydb_get(string key) {
-    T dummy;
-    uint num_bytes;
-    uint obj;
-    uint t_size = sizeof(dummy);
-    __syscall("keydb_get_size", obj, __cref key, __return num_bytes);
-    T[[1]] out(num_bytes / t_size);
-    __syscall("keydb_get", obj, __ref out);
-    return out;
-}
-
-template <type T>
-void keydb_set(string key, T[[1]] value) {
-    __syscall("keydb_set", __cref key, __cref value);
-}
-
-ScanCursor keydb_scan(string pattern) {
-    string key;
-    uint cursor = 0;
-    __syscall("keydb_scan", __ref cursor, __cref pattern, __return key);
-    ScanCursor sc;
-    sc.cursor = cursor;
-    sc.key = key;
-    return sc;
-}
-
-ScanCursor keydb_scan_next(uint cursor) {
-    ScanCursor sc;
-    string fake;
-    string key;
-    __syscall("keydb_scan", __ref cursor, __cref fake, __return key);
-    sc.cursor = cursor;
-    sc.key = key;
-    return sc;
-}
-
-void scanDB(string pattern) {
-    ScanCursor sc = keydb_scan(pattern);
-    while(sc.cursor != 0) {
-        print(sc.key);
-        sc = keydb_scan_next(sc.cursor);
-    }
-}
-
-bool keydb_intersect() {
-    bool ok;
-    __syscall("keydb_intersection", __return ok);
-    return ok;
+void keydb_test() {
+    string ret;
+    __syscall("keydb_test", __return ret);
 }
 
 void main() {
-    keydb_connect();
+    keydb_connect("host");
+    keydb_intersect();
     string key = "key";
     uint16[[1]] b = {3,2,1};
-    uint16[[1]] a = keydb_get(key);
-    publish("a", a);
-    keydb_set(key, {1,2,3});
-    a = keydb_get(key);
-    publish("a2", keydb_get(key));
-    keydb_set(key, b);
-    scanDB("*");
-    keydb_intersect();
+    uint16 proxy;
+    uint16[[1]] a = keydb_get(key, proxy);
+    pd_shared3p xor_uint16[[1]] xor = {3,1,4,213};
+    pd_shared3p xor_uint16 proxy1;
+    pd_shared3p xor_uint16[[1]] xor_ret = keydb_get("asd", proxy1);
+    keydb_set("asd", xor);
+    pd_shared3p uint8 omg = 123;
+    keydb_set("omg", omg);
+    assert(declassify(all(xor == xor_ret)));
     keydb_disconnect();
 }

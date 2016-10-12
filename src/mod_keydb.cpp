@@ -66,15 +66,14 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
 
         std::istringstream configuration(c->conf);
         std::string host;
-        unsigned int port;
+        uint16_t port;
         configuration >> host >> port;
         if (!configuration || !configuration.eof()) {
             delete mod;
             return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
         }
 
-        mod->host = host;
-        mod->port = port;
+        mod->hostMap.emplace("host", HostnameAndPort(host, port));
         c->moduleHandle = mod;
         return SHAREMIND_MODULE_API_0x1_OK;
     } catch (...) {

@@ -26,8 +26,9 @@
 #include <sharemind/datastoreapi.h>
 #include <sharemind/SyscallsCommon.h>
 #include <sharemind/libmodapi/api_0x1.h>
-#include <string>
 #include <sstream>
+#include <stdexcept>
+#include <string>
 #include "Intersection.h"
 #include "ModuleData.h"
 
@@ -103,37 +104,53 @@ inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c
         return factory->get_datastore(factory, ns);
 }
 
+inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
+        auto * store = getDataStore(c, "redis_client");
+        auto * client = static_cast<redis_client *>(store->get(store, "client"));
+        if (!client) {
+            throw std::logic_error(
+                    "Cannot get instance of redis_client. Make sure to call keydb_connect!");
+        }
+        return *client;
+}
+
 template<typename Func, typename... Args>
-cpp_redis::reply makeRequest(ModuleData & mod, Func && fun, Args && ...args) {
+cpp_redis::reply makeRequest(redis_client & client, const LogHard::Logger & logger, Func && fun, Args && ...args) {
         std::promise<cpp_redis::reply> rep;
         auto fut = rep.get_future();
         auto cb = [&rep](cpp_redis::reply & reply) {
             rep.set_value(reply);
         };
-        (mod.client.*fun)(std::forward<Args>(args)..., cb).commit();
+        (client.*fun)(std::forward<Args>(args)..., cb).commit();
         auto reply = fut.get();
-        callback_debug(reply, mod.logger);
+        callback_debug(reply, logger);
         return reply;
 }
 
 } /* namespace { */
 
-SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 0,
+SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         (void)args;
 
-        try {
-            mod.client.connect(mod.host, mod.port);
-        } catch (cpp_redis::redis_error & er) {
-            mod.logger.error() << er.what();
-            throw;
+        auto * store = getDataStore(c, "redis_client");
+        auto * client = new redis_client();
+        store->set(store, "client", client, [] (void * p) { delete static_cast<redis_client *>(p); } );
+        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+        auto it = mod.hostMap.find(key);
+        if (it == mod.hostMap.end()) {
+            mod.logger.error() << "Could not find the host \"" << key
+                << "\" in the module hosts configuration.";
+            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
         }
+        auto & hp = it->second;
+        client->connect(hp.hostname, hp.port);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
         (void)args;
-
-        mod.client.sync_commit();
-        mod.client.disconnect();
+        auto & client = getClient(c);
+        client.sync_commit();
+        client.disconnect();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
@@ -146,7 +163,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
         mod.logger.debug() << "Set with key \"" << key << "\" and value \"" << value << '\"';
-        makeRequest(mod, &redis_client::set, key, value);
+        makeRequest(getClient(c), mod.logger, &redis_client::set, key, value);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -159,7 +176,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        auto reply = makeRequest(mod, &redis_client::get, key);
+        auto reply = makeRequest(getClient(c), mod.logger, &redis_client::get, key);
         const std::string & data = reply.as_string();
 
         // store returned data in heap
@@ -204,7 +221,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         (void) args;
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1u);
-        mod.client.del({key}).commit();
+        getClient(c).del({key}).commit();
     );
 
 struct scan_struct {
@@ -262,7 +279,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             std::string str_cursor = std::to_string(scan->cursor);
             mod.logger.debug() << "scan with " << str_cursor;
 
-            auto reply = makeRequest(mod, &redis_client::send,
+            auto reply = makeRequest(getClient(c), mod.logger, &redis_client::send,
                     (std::vector<std::string>){"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"});
 
             auto & parts = reply.as_array();
@@ -302,8 +319,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
 SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         (void) args;
         mod.logger.debug() << "keydb_intersection";
+        auto & client = getClient(c);
 
-        auto reply = makeRequest(mod, &redis_client::keys, "*");
+        auto reply = makeRequest(client, mod.logger, &redis_client::keys, "*");
 
         std::vector<std::string> keys;
         if (reply.is_array()) {
@@ -315,7 +333,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         std::vector<std::string> toBeDeleted;
         if (intersection(keys, toBeDeleted, c)) {
             mod.logger.debug() << "keys to delete: " << toBeDeleted.size();
-            mod.client.del(toBeDeleted).sync_commit();
+            client.del(toBeDeleted).sync_commit();
             returnValue->uint64[0] = 1;
         }
         returnValue->uint64[0] = 0;
