@@ -59,31 +59,7 @@ using namespace cpp_redis;
 
 namespace {
 
-void reply_to_stream(const cpp_redis::reply & reply, std::ostringstream & stream) {
-    if (reply.is_null()) {
-        stream << "(nil)";
-    }
-    else if (reply.is_string() || reply.is_error()) {
-        stream << reply.as_string();
-    } else if (reply.is_integer()) {
-        stream << reply.as_integer();
-    } else if (reply.is_array()) {
-        stream << '[';
-        for (const auto & rep : reply.as_array()) {
-            reply_to_stream(rep, stream);
-            stream << ", ";
-        }
-        stream << ']';
-    }
-}
-
-void callback_debug(const cpp_redis::reply & reply, const LogHard::Logger & logger) {
-    std::ostringstream stream;
-    reply_to_stream(reply, stream);
-    logger.debug() << "Received a new reply: " << stream.str();
-}
-
-void return_string(SharemindModuleApi0x1SyscallContext * c,
+inline void return_string(SharemindModuleApi0x1SyscallContext * c,
         SharemindCodeBlock * returnValue,
         std::string & data)
 {
@@ -115,7 +91,7 @@ inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
 }
 
 template<typename Func, typename... Args>
-cpp_redis::reply makeRequest(redis_client & client, const LogHard::Logger & logger, Func && fun, Args && ...args) {
+cpp_redis::reply makeRequest(redis_client & client, Func && fun, Args && ...args) {
         std::promise<cpp_redis::reply> rep;
         auto fut = rep.get_future();
         auto cb = [&rep](cpp_redis::reply & reply) {
@@ -123,7 +99,6 @@ cpp_redis::reply makeRequest(redis_client & client, const LogHard::Logger & logg
         };
         (client.*fun)(std::forward<Args>(args)..., cb).commit();
         auto reply = fut.get();
-        callback_debug(reply, logger);
         return reply;
 }
 
@@ -163,7 +138,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
         mod.logger.debug() << "Set with key \"" << key << "\" and value \"" << value << '\"';
-        makeRequest(getClient(c), mod.logger, &redis_client::set, key, value);
+        makeRequest(getClient(c), &redis_client::set, key, value);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -176,7 +151,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        auto reply = makeRequest(getClient(c), mod.logger, &redis_client::get, key);
+        auto reply = makeRequest(getClient(c), &redis_client::get, key);
         const std::string & data = reply.as_string();
 
         // store returned data in heap
@@ -279,7 +254,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             std::string str_cursor = std::to_string(scan->cursor);
             mod.logger.debug() << "scan with " << str_cursor;
 
-            auto reply = makeRequest(getClient(c), mod.logger, &redis_client::send,
+            auto reply = makeRequest(getClient(c), &redis_client::send,
                     (std::vector<std::string>){"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"});
 
             auto & parts = reply.as_array();
@@ -321,7 +296,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
         mod.logger.debug() << "keydb_intersection";
         auto & client = getClient(c);
 
-        auto reply = makeRequest(client, mod.logger, &redis_client::keys, "*");
+        auto reply = makeRequest(client, &redis_client::keys, "*");
 
         std::vector<std::string> keys;
         if (reply.is_array()) {

@@ -4,11 +4,6 @@ import shared3p_keydb;
 
 domain pd_shared3p shared3p;
 
-void keydb_test() {
-    string ret;
-    __syscall("keydb_test", __return ret);
-}
-
 void main() {
     keydb_connect("host");
     keydb_intersect();
