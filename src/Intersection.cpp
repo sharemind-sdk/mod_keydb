@@ -216,7 +216,7 @@ bool intersection(const std::vector<std::string> & keys,
     const void * globalId = processFacility->globalId(processFacility);
 
     if (!globalId) {
-        mod.logger.debug() << "keydb_intersectio: no global id";
+        mod.logger.debug() << "keydb_intersection: no global id";
         globalIdSize = 0;
     }
 

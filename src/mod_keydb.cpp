@@ -95,14 +95,14 @@ SHAREMIND_MODULE_API_0x1_DEINITIALIZER(c) {
 #define SAMENAME(f) { #f, &(f) }
 
 SHAREMIND_MODULE_API_0x1_SYSCALL_DEFINITIONS(
+    SAMENAME(keydb_clean),
     SAMENAME(keydb_connect),
-    SAMENAME(keydb_disconnect),
-    SAMENAME(keydb_set),
-    SAMENAME(keydb_get_size),
-    SAMENAME(keydb_get),
     SAMENAME(keydb_del),
+    SAMENAME(keydb_disconnect),
+    SAMENAME(keydb_get),
+    SAMENAME(keydb_get_size),
     SAMENAME(keydb_scan),
-    SAMENAME(keydb_intersection)
+    SAMENAME(keydb_set)
 );
 
 } // extern "C" {

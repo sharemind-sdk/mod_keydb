@@ -6,7 +6,8 @@ domain pd_shared3p shared3p;
 
 void main() {
     keydb_connect("host");
-    keydb_intersect();
+    scanDB("*");
+    assert(keydb_clean("*"));
     string key = "key";
     uint16[[1]] b = {3,2,1};
     uint16 proxy;

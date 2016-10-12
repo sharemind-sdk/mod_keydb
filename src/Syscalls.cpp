@@ -19,7 +19,6 @@
 
 
 #include <cpp_redis/cpp_redis>
-#include <deque>
 #include <future>
 #include <iostream>
 #include <LogHard/Logger.h>
@@ -30,6 +29,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include "Intersection.h"
 #include "ModuleData.h"
 
@@ -62,7 +62,7 @@ namespace {
 
 inline void return_string(SharemindModuleApi0x1SyscallContext * c,
         SharemindCodeBlock * returnValue,
-        std::string & data)
+        const std::string & data)
 {
         const uint64_t mem_hndl = c->publicAlloc(c, data.size());
         if (mem_hndl) {
@@ -103,6 +103,45 @@ cpp_redis::reply makeRequest(redis_client & client, Func && fun, Args && ...args
         return reply;
 }
 
+bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
+                  const std::string & pattern,
+                  std::vector<std::string> & orderedKeys)
+{
+        auto & client = getClient(c);
+        std::set<std::string> keys;
+        uint64_t cursor = 0;
+        std::string str_cursor = "0";
+        do {
+            /* TODO: can be made to work in parallel
+             * send a request and then enter keys to the set
+             * after that wait for the next reply
+             */
+            auto reply = makeRequest(client, &redis_client::send,
+                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
+            auto & parts = reply.as_array();
+            str_cursor = parts[0].as_string();
+            std::istringstream iss(str_cursor);
+            iss >> cursor;
+
+            auto & replies = parts[1].as_array();
+            for (auto & r : replies) {
+                keys.emplace(r.as_string());
+            }
+        } while (cursor != 0);
+
+        // collect keys from the set into an ordered vector, while at the same time
+        // freeing the memory from set
+        for (auto it = keys.begin(); it != keys.end(); keys.erase(it++)) {
+            orderedKeys.emplace_back(*it);
+        }
+        std::vector<std::string> toDelete;
+        if (intersection(orderedKeys, toDelete, c)) {
+            client.del(toDelete).commit();
+            return true;
+        }
+        return false;
+}
+
 } /* namespace { */
 
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
@@ -110,7 +149,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
 
         auto * store = getDataStore(c, "redis_client");
         auto * client = new redis_client();
-        store->set(store, "client", client, [] (void * p) { delete static_cast<redis_client *>(p); } );
+        auto deleter = [] (void * p) { delete static_cast<redis_client *>(p); };
+        store->set(store, "client", client, deleter);
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         auto it = mod.hostMap.find(key);
         if (it == mod.hostMap.end()) {
@@ -138,7 +178,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
-        mod.logger.debug() << "Set with key \"" << key << "\" and value \"" << value << '\"';
+        mod.logger.debug() << "Set with key \"" << key;
         makeRequest(getClient(c), &redis_client::set, key, value);
     );
 
@@ -200,139 +240,56 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         getClient(c).del({key}).commit();
     );
 
-struct scan_struct {
-    scan_struct(const std::string & pattern)
-        : pattern{pattern}, cursor{0}
-    { }
-
-    const std::string pattern;
-    std::deque<std::string> que;
-    uint64_t cursor;
-};
-
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         (void) args;
-        mod.logger.debug() << "keydb_scan";
-
         uint64_t * cl_cursor = static_cast<uint64_t *>(refs[0].pData);
         assert(cl_cursor);
 
         auto * store = getDataStore(c, "keydb_scan");
 
-        scan_struct * scan = nullptr;
-        std::string client_cursor;
-        const char * uid = nullptr;
+        std::vector<std::string> * scan = nullptr;
+        std::string uid = *cl_cursor ? std::to_string(*cl_cursor) : "1";
 
-        bool should_scan = true;
-
-        if (!*cl_cursor) {
+        if (!*cl_cursor) { // if a new cursor!
             uint64_t id = 1;
-            do {
-                client_cursor = std::to_string(id);
+            while (!!store->get(store, uid.c_str())) {
                 ++id;
-            } while (!!store->get(store, client_cursor.c_str()));
+                uid = std::to_string(id);
+            }
 
             assert(crefs[0].size > 0);
             const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
-            scan = new scan_struct(pattern);
-            auto deleter = [] (void * p) { delete static_cast<scan_struct *>(p); };
-            uid = client_cursor.c_str();
-            store->set(store, uid, scan, deleter);
-            mod.logger.debug() << "keydb_scan : new cursor (" << uid << ')';
-            *cl_cursor = --id;
-        } else {
-            client_cursor = std::to_string(*cl_cursor);
-            uid = client_cursor.c_str();
-            scan = static_cast<scan_struct *>(store->get(store, uid));
-            mod.logger.debug() << "keydb_scan : old cursor (" << uid << ')';
-            should_scan = scan->cursor != 0;
+            scan = new std::vector<std::string>();
+            auto deleter = [] (void * p) { delete static_cast<std::vector<std::string> *>(p); };
+            store->set(store, uid.c_str(), scan, deleter);
+            mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
+            *cl_cursor = id;
+
+            // run consensus because scan on redis does not guarantee order of keys
+            scanAndClean(c, pattern, *scan);
+        } else { // existing cursor
+            scan = static_cast<std::vector<std::string> *>(store->get(store, uid.c_str()));
         }
 
         assert(scan);
-        while (scan->que.empty() && should_scan) {
-            mod.logger.debug() << "keydb_scan : scan";
 
-            std::string str_cursor = std::to_string(scan->cursor);
-            mod.logger.debug() << "scan with " << str_cursor;
-
-            auto reply = makeRequest(getClient(c), &redis_client::send,
-                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", scan->pattern, "COUNT", "3"});
-
-            auto & parts = reply.as_array();
-            assert(parts.size() == 2);
-            std::istringstream iss(parts[0].as_string());
-            uint64_t new_cursor;
-            iss >> new_cursor;
-
-            // add returned entities to scan_cursor
-            if (!parts[1].is_null()) {
-                auto & items = parts[1].as_array();
-                for (auto & item : items) {
-                    scan->que.push_back(item.as_string());
-                }
-            }
-
-            scan->cursor = new_cursor;
-            mod.logger.debug() << "new cursor " << new_cursor;
-
-            if (!new_cursor) {
-                break;
-            }
-        }
-
-        if (!scan->que.empty()) {
-            mod.logger.debug() << "keydb_scan : return string : " << scan->que.front();
-            return_string(c, returnValue, scan->que.front());
-            scan->que.pop_front();
-        }
-        else if (!should_scan) {
+        if (!scan->empty()) {
+            return_string(c, returnValue, scan->back());
+            scan->pop_back();
+        } else {
             *cl_cursor = 0;
-            store->remove(store, uid);
-            mod.logger.debug() << "keydb_scan : del cursor (" << uid << ')';
+            return_string(c, returnValue, std::string("siin ei ole kala"));
+            store->remove(store, uid.c_str());
+            mod.logger.debug() << "keydb_scan: del cursor (" << uid.c_str() << ')';
         }
     );
 
-SHAREMIND_DEFINE_SYSCALL(keydb_intersection, 0, true, 0, 0,
+SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
         (void) args;
-        mod.logger.debug() << "keydb_intersection";
-        auto & client = getClient(c);
-
-        std::set<std::string> keys;
-        uint64_t cursor = 0;
-        std::string str_cursor = "0";
-        do {
-            auto reply = makeRequest(getClient(c), &redis_client::send,
-                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", "*", "COUNT", "3"});
-            auto & parts = reply.as_array();
-            str_cursor = parts[0].as_string();
-            std::istringstream iss(str_cursor);
-            iss >> cursor;
-
-            auto & replies = parts[1].as_array();
-            for (auto & r : replies) {
-                keys.emplace(r.as_string());
-            }
-        } while (cursor != 0);
+        mod.logger.debug() << "keydb_clean";
+        const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
 
         std::vector<std::string> orderedKeys;
-        for (auto it = keys.begin(); it != keys.end(); ++it) {
-            orderedKeys.emplace_back(*it);
-            keys.erase(it);
-        }
-        mod.logger.debug() << "Keys: ";
-        for (auto & s : orderedKeys) {
-            mod.logger.debug() << s;
-        }
-        mod.logger.debug() << "end";
-
-        std::vector<std::string> toBeDeleted;
-        if (intersection(orderedKeys, toBeDeleted, c)) {
-            mod.logger.debug() << "keys to delete: " << toBeDeleted.size();
-            client.del(toBeDeleted).sync_commit();
-            returnValue->uint64[0] = 1;
-        } else {
-            returnValue->uint64[0] = 0;
-        }
-        // TODO: maybe should do some other consensus here
-        // for example to make sure all servers are in the same spot
+        bool b = scanAndClean(c, pattern, orderedKeys);
+        returnValue->uint64[0] = b ? 1 : 0;
     );
