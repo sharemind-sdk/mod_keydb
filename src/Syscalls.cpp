@@ -92,15 +92,20 @@ inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
 }
 
 template<typename Func, typename... Args>
-cpp_redis::reply makeRequest(redis_client & client, Func && fun, Args && ...args) {
+std::future<cpp_redis::reply> request(redis_client & client, Func && fun, Args && ...args) {
         std::promise<cpp_redis::reply> rep;
         auto fut = rep.get_future();
         auto cb = [&rep](cpp_redis::reply & reply) {
             rep.set_value(reply);
         };
         (client.*fun)(std::forward<Args>(args)..., cb).commit();
-        auto reply = fut.get();
-        return reply;
+        return fut;
+}
+
+template<typename Func, typename... Args>
+cpp_redis::reply requestAndWait(redis_client & client, Func && fun, Args && ...args) {
+        auto future = request(client, std::forward<Func>(fun), std::forward<Args>(args)...);
+        return future.get();
 }
 
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
@@ -111,23 +116,28 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         std::set<std::string> keys;
         uint64_t cursor = 0;
         std::string str_cursor = "0";
+
+        // make the first request
+        auto future = request(client, &redis_client::send,
+                (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
         do {
-            /* TODO: can be made to work in parallel
-             * send a request and then enter keys to the set
-             * after that wait for the next reply
-             */
-            auto reply = makeRequest(client, &redis_client::send,
-                    (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
+            auto reply = future.get();
             auto & parts = reply.as_array();
             str_cursor = parts[0].as_string();
             std::istringstream iss(str_cursor);
             iss >> cursor;
 
+            if (cursor) {
+                // make the next request
+                auto future = request(client, &redis_client::send,
+                        (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
+            }
+            // while the next response arrives store the prevoius response into set
             auto & replies = parts[1].as_array();
             for (auto & r : replies) {
                 keys.emplace(r.as_string());
             }
-        } while (cursor != 0);
+        } while (cursor);
 
         // collect keys from the set into an ordered vector, while at the same time
         // freeing the memory from set
@@ -179,7 +189,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
         mod.logger.debug() << "Set with key \"" << key;
-        makeRequest(getClient(c), &redis_client::set, key, value);
+        requestAndWait(getClient(c), &redis_client::set, key, value);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -192,7 +202,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        auto reply = makeRequest(getClient(c), &redis_client::get, key);
+        auto reply = requestAndWait(getClient(c), &redis_client::get, key);
         const std::string & data = reply.as_string();
 
         // store returned data in heap
