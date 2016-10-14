@@ -92,19 +92,14 @@ inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
 }
 
 template<typename Func, typename... Args>
-std::future<cpp_redis::reply> request(redis_client & client, Func && fun, Args && ...args) {
-        std::promise<cpp_redis::reply> rep;
-        auto fut = rep.get_future();
-        auto cb = [&rep](cpp_redis::reply & reply) {
+cpp_redis::reply requestAndWait(redis_client & client, Func && fun, Args && ...args) {
+        using reply_t = cpp_redis::reply;
+        std::promise<reply_t> rep;
+        auto future = rep.get_future();
+        auto cb = [&rep](reply_t & reply) {
             rep.set_value(reply);
         };
         (client.*fun)(std::forward<Args>(args)..., cb).commit();
-        return fut;
-}
-
-template<typename Func, typename... Args>
-cpp_redis::reply requestAndWait(redis_client & client, Func && fun, Args && ...args) {
-        auto future = request(client, std::forward<Func>(fun), std::forward<Args>(args)...);
         return future.get();
 }
 
@@ -117,10 +112,19 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         uint64_t cursor = 0;
         std::string str_cursor = "0";
 
+        using reply_t = cpp_redis::reply;
+        std::promise<reply_t> promise;
+        auto future = promise.get_future();
+        auto cb = [&promise](reply_t & reply) {
+            promise.set_value(reply);
+        };
         // make the first request
-        auto future = request(client, &redis_client::send,
-                (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
+        client.send((std::vector<std::string>)
+                {"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"},
+                cb).commit();
+
         do {
+            // get the response
             auto reply = future.get();
             auto & parts = reply.as_array();
             str_cursor = parts[0].as_string();
@@ -129,8 +133,14 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
 
             if (cursor) {
                 // make the next request
-                auto future = request(client, &redis_client::send,
-                        (std::vector<std::string>){"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"});
+                promise = std::promise<reply_t>();
+                future = promise.get_future();
+                auto cb = [&promise](reply_t & reply) {
+                    promise.set_value(reply);
+                };
+                client.send((std::vector<std::string>)
+                        {"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"},
+                        cb).commit();
             }
             // while the next response arrives store the prevoius response into set
             auto & replies = parts[1].as_array();
@@ -142,7 +152,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         // collect keys from the set into an ordered vector, while at the same time
         // freeing the memory from set
         for (auto it = keys.begin(); it != keys.end(); keys.erase(it++)) {
-            orderedKeys.emplace_back(*it);
+            orderedKeys.emplace_back(std::move(*it));
         }
         std::vector<std::string> toDelete;
         if (intersection(orderedKeys, toDelete, c)) {
