@@ -81,14 +81,23 @@ inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c
         return factory->get_datastore(factory, ns);
 }
 
-inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
-        auto * store = getDataStore(c, "redis_client");
-        auto * client = static_cast<redis_client *>(store->get(store, "client"));
-        if (!client) {
+template <typename T>
+inline T & getItem(SharemindModuleApi0x1SyscallContext * c, const char * name) {
+        auto * store = getDataStore(c, "keydb");
+        T * item = static_cast<T *>(store->get(store, name));
+        if (!item) {
             throw std::logic_error(
-                    "Cannot get instance of redis_client. Make sure to call keydb_connect!");
+                    "Cannot get some process instance specific data. Make sure to call keydb_connect!");
         }
-        return *client;
+        return *item;
+}
+
+inline redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
+    return getItem<redis_client>(c, "Client");
+}
+
+inline sharemind::ModuleData::HostConfiguration & getHostConf(SharemindModuleApi0x1SyscallContext * c) {
+    return getItem<sharemind::ModuleData::HostConfiguration>(c, "HostConfiguration");
 }
 
 template<typename Func, typename... Args>
@@ -108,6 +117,8 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   std::vector<std::string> & orderedKeys)
 {
         auto & client = getClient(c);
+        auto & hostconf = getHostConf(c);
+
         std::set<std::string> keys;
         uint64_t cursor = 0;
         std::string str_cursor = "0";
@@ -120,7 +131,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         };
         // make the first request
         client.send((std::vector<std::string>)
-                {"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"},
+                {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
                 cb).commit();
 
         do {
@@ -139,7 +150,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                     promise.set_value(reply);
                 };
                 client.send((std::vector<std::string>)
-                        {"SCAN", str_cursor, "MATCH", pattern, "COUNT", "3"},
+                        {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
                         cb).commit();
             }
             // while the next response arrives store the prevoius response into set
@@ -167,10 +178,10 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         (void)args;
 
-        auto * store = getDataStore(c, "redis_client");
+        auto * store = getDataStore(c, "keydb");
         auto * client = new redis_client();
         auto deleter = [] (void * p) { delete static_cast<redis_client *>(p); };
-        store->set(store, "client", client, deleter);
+        store->set(store, "Client", client, deleter);
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         auto it = mod.hostMap.find(key);
         if (it == mod.hostMap.end()) {
@@ -178,8 +189,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
                 << "\" in the module hosts configuration.";
             return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
         }
-        auto & hp = it->second;
-        client->connect(hp.hostname, hp.port);
+        auto & hc = it->second;
+        client->connect(hc.hostname, hc.port);
+
+        store->set(store, "HostConfiguration", &hc, nullptr);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,

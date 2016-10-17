@@ -27,11 +27,11 @@ public: /* Types: */
         HostConfiguration(const std::string & hostname_,
                 const std::uint16_t port_,
                 const std::uint16_t scanCount_)
-            : hostname(hostname_), port(port_), scanCount(scanCount_)
+            : hostname(hostname_), port(port_), scanCount(std::to_string(scanCount_))
         { }
         const std::string hostname;
         const std::uint16_t port;
-        const std::uint16_t scanCount;
+        const std::string scanCount;
     };
 
     ModuleData(const LogHard::Logger & logger,
