@@ -43,7 +43,7 @@ using namespace cpp_redis;
         if (!sharemind::SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, refs, crefs, returnValue)) \
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL; \
         assert(c->moduleHandle); \
-        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle); \
+        auto & mod = *static_cast<sharemind::ModuleData * const>(c->moduleHandle); \
         try { \
             code \
             return SHAREMIND_MODULE_API_0x1_OK; \
@@ -155,7 +155,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
             orderedKeys.emplace_back(std::move(*it));
         }
         std::vector<std::string> toDelete;
-        if (intersection(orderedKeys, toDelete, c)) {
+        if (sharemind::intersection(orderedKeys, toDelete, c)) {
             client.del(toDelete).commit();
             return true;
         }

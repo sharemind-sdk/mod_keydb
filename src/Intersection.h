@@ -26,6 +26,8 @@
 #include <string>
 #include <vector>
 
+namespace sharemind {
+
 extern SharemindOperationType const intersectionOperation;
 
 // keys must be sorted!
@@ -33,4 +35,7 @@ bool intersection(const std::vector<std::string> & keys,
         std::vector<std::string> & toDelete,
         const SharemindModuleApi0x1SyscallContext * c)
     SHAREMIND_VISIBILITY_HIDDEN;
+
+} /* namespace sharemind { */
+
 #endif /* SHAREMIND_MOD_KEYDB_INTERSECTION_H */

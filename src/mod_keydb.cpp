@@ -22,7 +22,7 @@
 #include <sharemind/libconsensusservice.h>
 #include <sharemind/libmodapi/api_0x1.h>
 #include <sharemind/SyscallsCommon.h>
-#include <sstream>
+
 #include "ModuleData.h"
 #include "Syscalls.h"
 
@@ -40,8 +40,10 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
     if (!flog || !flog->facility)
         return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY;
 
-    const LogHard::Logger & logger =
-            *static_cast<const LogHard::Logger *>(flog->facility);
+    const auto logger =
+        LogHard::Logger(
+            *static_cast<const LogHard::Logger *>(flog->facility),
+            "[mod_keydb]");
 
     const SharemindModuleApi0x1Facility * fconsensus
             = c->getModuleFacility(c, "ConsensusService");
@@ -53,27 +55,21 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
     }
 
     try {
-        ModuleData * mod = new ModuleData(logger, consensusFacility);
-
-        /* parse configuration
-         * HOST PORT
-         */
         if (!c->conf) {
-            mod->logger.error() << "No configuration given.";
+            logger.error() << "No configuration given.";
+            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
+        }
+
+        sharemind::ModuleData * mod =
+            new sharemind::ModuleData(std::move(logger), consensusFacility);
+
+        std::string error;
+        if (!mod->load(c->conf, error)) {
+            logger.error() << "Failed to parse configuration: " << error;
             delete mod;
             return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
         }
 
-        std::istringstream configuration(c->conf);
-        std::string host;
-        uint16_t port;
-        configuration >> host >> port;
-        if (!configuration || !configuration.eof()) {
-            delete mod;
-            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
-        }
-
-        mod->hostMap.emplace("host", HostnameAndPort(host, port));
         c->moduleHandle = mod;
         return SHAREMIND_MODULE_API_0x1_OK;
     } catch (...) {
@@ -86,7 +82,7 @@ SHAREMIND_MODULE_API_0x1_DEINITIALIZER(c)
 SHAREMIND_MODULE_API_0x1_DEINITIALIZER(c) {
     assert(c);
     assert(c->moduleHandle);
-    delete static_cast<ModuleData *>(c->moduleHandle);
+    delete static_cast<sharemind::ModuleData *>(c->moduleHandle);
     #ifndef NDEBUG
     c->moduleHandle = nullptr; // Not needed, but may help debugging.
     #endif

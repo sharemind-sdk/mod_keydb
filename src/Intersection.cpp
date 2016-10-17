@@ -189,6 +189,8 @@ void commit(const SharemindConsensusDatum * proposals,
 
 } /* namespace { */
 
+namespace sharemind {
+
 SharemindOperationType const intersectionOperation = {
     &equivalent,
     &execute,
@@ -231,3 +233,5 @@ bool intersection(const std::vector<std::string> & keys,
                                                  &conData);
     return err == SHAREMIND_CONSENSUS_FACILITY_OK;
 }
+
+} /* namespace sharemind { */

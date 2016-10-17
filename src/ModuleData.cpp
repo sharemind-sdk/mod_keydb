@@ -16,14 +16,71 @@
  *
  * For further information, please contact us at sharemind@cyber.ee.
  */
+#include <boost/property_tree/ini_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <sstream>
 
 #include "Intersection.h"
 #include "ModuleData.h"
 
+namespace pt = boost::property_tree;
+
+namespace sharemind {
+
 ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility * cf)
-    : logger(logger, "[mod_keydb]")
+    : logger{logger}
     , consensusFacility(cf)
 {
     if (consensusFacility)
         consensusFacility->add_operation_type(consensusFacility, &intersectionOperation);
 }
+
+bool ModuleData::load(const char * filename, std::string & errorMsg) {
+    // Define the configuration property tree:
+    pt::ptree config;
+
+    // Parse the configuration file into the property tree:
+    try {
+        pt::read_ini(filename, config);
+        for (const pt::ptree::value_type & v : config) {
+            std::string const & section{v.first};
+            logger.info() << section;
+            if (section.find("Host") == 0u) {
+                hostMap.emplace(
+                        "host",
+                        HostConfiguration{
+                            v.second.get<std::string>("Hostname"),
+                            v.second.get<std::uint16_t>("Port", 6379),
+                            v.second.get<std::uint16_t>("ScanCount", 25)});
+            }
+        }
+    } catch (const pt::ini_parser_error & error) {
+#if BOOST_VERSION <= 104200
+        errorMsg = error.what();
+#else
+        std::ostringstream o;
+        o << error.message() << " [" << error.filename() << ":" << error.line() << "].";
+        errorMsg = o.str();
+#endif
+        return false;
+    } catch (const pt::ptree_bad_data & error) {
+        std::ostringstream o;
+        o << "Bad data: " << error.what();
+        errorMsg = o.str();
+        return false;
+    } catch (const pt::ptree_bad_path & error) {
+        std::ostringstream o;
+        o << "Bad path: " << error.what();
+        errorMsg = o.str();
+        return false;
+    }
+
+    if (hostMap.empty()) {
+        errorMsg = "No hosts defined!";
+        return false;
+    }
+
+    return true;
+}
+
+} /* namespace sharemind { */

@@ -17,21 +17,33 @@
 #include <unordered_map>
 #include <vector>
 
-struct HostnameAndPort {
-    HostnameAndPort(std::string & hostname_, std::uint16_t port_)
-        : hostname(hostname_), port(port_)
-    { }
-    std::string hostname;
-    std::uint16_t port;
-};
+namespace sharemind {
 
-struct __attribute__ ((visibility("internal"))) ModuleData {
+class __attribute__ ((visibility("internal"))) ModuleData {
+
+public: /* Types: */
+
+    struct HostConfiguration {
+        HostConfiguration(const std::string & hostname_,
+                const std::uint16_t port_,
+                const std::uint16_t scanCount_)
+            : hostname(hostname_), port(port_), scanCount(scanCount_)
+        { }
+        const std::string hostname;
+        const std::uint16_t port;
+        const std::uint16_t scanCount;
+    };
+
     ModuleData(const LogHard::Logger & logger,
         SharemindConsensusFacility * cf);
 
+    bool load(const char * filename, std::string & errorMsg);
+
     const LogHard::Logger logger;
     SharemindConsensusFacility *consensusFacility;
-    std::unordered_map<std::string, HostnameAndPort> hostMap;
+    std::unordered_map<std::string, HostConfiguration> hostMap;
 };
+
+} /* namespace sharemind { */
 
 #endif /* SHAREMIND_MOD_KEYDB_MODULEDATA_H */
