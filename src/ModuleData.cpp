@@ -44,14 +44,16 @@ bool ModuleData::load(const char * filename, std::string & errorMsg) {
         pt::read_ini(filename, config);
         for (const pt::ptree::value_type & v : config) {
             std::string const & section{v.first};
-            logger.info() << section;
             if (section.find("Host") == 0u) {
+                std::string name = v.second.get<std::string>("Name");
                 hostMap.emplace(
-                        "host",
+                        name,
                         HostConfiguration{
                             v.second.get<std::string>("Hostname"),
                             v.second.get<std::uint16_t>("Port", 6379),
-                            v.second.get<std::uint16_t>("ScanCount", 25)});
+                            v.second.get<std::uint16_t>("ScanCount", 25),
+                            v.second.get<bool>("DisableOverwrite", false)
+                            });
             }
         }
     } catch (const pt::ini_parser_error & error) {

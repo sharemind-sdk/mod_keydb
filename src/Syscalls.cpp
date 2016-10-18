@@ -211,8 +211,14 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
 
-        mod.logger.debug() << "Set with key \"" << key;
-        requestAndWait(getClient(c), &redis_client::set, key, value);
+        mod.logger.debug() << "Set with key \"" << key << "\"";
+        std::vector<std::string> command(4);
+        command.push_back("SET");
+        command.push_back(key);
+        command.push_back(value);
+        if (getHostConf(c).disableOverwrite)
+            command.push_back("NX");
+        getClient(c).send(command).commit();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -244,7 +250,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         store->set(store, id_str.c_str(), heapString, deleter);
 
         args[0].uint64[0] = id - 1;
-        mod.logger.debug() << "keydb_get_size " << args[0].uint64[0] << " " << id_str;
 
         // return size of data
         returnValue->uint64[0] = data.size();

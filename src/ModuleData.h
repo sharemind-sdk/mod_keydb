@@ -26,12 +26,17 @@ public: /* Types: */
     struct HostConfiguration {
         HostConfiguration(const std::string & hostname_,
                 const std::uint16_t port_,
-                const std::uint16_t scanCount_)
-            : hostname(hostname_), port(port_), scanCount(std::to_string(scanCount_))
+                const std::uint16_t scanCount_,
+                const bool disableOverwrite_)
+            : hostname(hostname_)
+            , port(port_)
+            , scanCount(std::to_string(scanCount_))
+            , disableOverwrite(disableOverwrite_)
         { }
         const std::string hostname;
         const std::uint16_t port;
         const std::string scanCount;
+        const bool disableOverwrite;
     };
 
     ModuleData(const LogHard::Logger & logger,
