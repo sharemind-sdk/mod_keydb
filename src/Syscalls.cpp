@@ -167,7 +167,9 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         }
         std::vector<std::string> toDelete;
         if (sharemind::intersection(orderedKeys, toDelete, c)) {
-            client.del(toDelete).commit();
+            if (!toDelete.empty()) {
+                client.del(toDelete).commit();
+            }
             return true;
         }
         return false;
