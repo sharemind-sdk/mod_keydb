@@ -204,23 +204,32 @@ SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
         client.disconnect();
     );
 
-SHAREMIND_DEFINE_SYSCALL(keydb_set, 0, false, 0, 2,
-        (void) args;
-
+SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
+        if (args[0].uint64[0] > 1)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         if (crefs->size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
-        const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - 1);
+        bool isArray = args[0].uint64[0];
 
-        mod.logger.debug() << "Set with key \"" << key << "\"";
-        std::vector<std::string> command(4);
-        command.push_back("SET");
-        command.push_back(key);
-        command.push_back(value);
+        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+        // arrays need size -1, scalars do not need it
+        const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - isArray);
+
+        mod.logger.debug() << "Set with key \"" << key << "\" size = " << (int)value.size();
+        std::vector<std::string> command;
+        command.reserve(4);
+        command.emplace_back("SET");
+        command.emplace_back(key);
+        command.emplace_back(value);
         if (getHostConf(c).disableOverwrite)
-            command.push_back("NX");
-        getClient(c).send(command).commit();
+            command.emplace_back("NX");
+        auto cb = [&mod] (reply & r) {
+            if ( r.is_error()) {
+                mod.logger.error() << r.as_string();
+            }
+        };
+        getClient(c).send(command, cb).commit();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
