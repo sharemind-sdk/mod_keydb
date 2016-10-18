@@ -18,6 +18,7 @@
  */
 
 
+#include <algorithm>
 #include <cpp_redis/cpp_redis>
 #include <future>
 #include <iostream>
@@ -114,7 +115,8 @@ cpp_redis::reply requestAndWait(redis_client & client, Func && fun, Args && ...a
 
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   const std::string & pattern,
-                  std::vector<std::string> & orderedKeys)
+                  std::vector<std::string> & orderedKeys,
+                  bool cleanUpOrderedKeys = false)
 {
         auto & client = getClient(c);
         auto & hostconf = getHostConf(c);
@@ -169,6 +171,12 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         if (sharemind::intersection(orderedKeys, toDelete, c)) {
             if (!toDelete.empty()) {
                 client.del(toDelete).commit();
+            }
+            if (cleanUpOrderedKeys) {
+                for (auto & k : toDelete) {
+                    auto it = std::lower_bound(orderedKeys.begin(), orderedKeys.end(), k);
+                    orderedKeys.erase(it);
+                }
             }
             return true;
         }
@@ -315,7 +323,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             *cl_cursor = id;
 
             // run consensus because scan on redis does not guarantee order of keys
-            scanAndClean(c, pattern, *scan);
+            scanAndClean(c, pattern, *scan, true);
         } else { // existing cursor
             scan = static_cast<std::vector<std::string> *>(store->get(store, uid.c_str()));
         }
