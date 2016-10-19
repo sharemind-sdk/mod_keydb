@@ -65,10 +65,12 @@ inline void return_string(SharemindModuleApi0x1SyscallContext * c,
         SharemindCodeBlock * returnValue,
         const std::string & data)
 {
-        const uint64_t mem_hndl = c->publicAlloc(c, data.size());
+        const uint64_t mem_hndl = c->publicAlloc(c, data.size() + 1);
         if (mem_hndl) {
-            void * const ptr = c->publicMemPtrData(c, mem_hndl);
+            char * const ptr = static_cast<char * const>(c->publicMemPtrData(c, mem_hndl));
             memcpy(ptr, data.c_str(), data.size());
+            // add the zero byte at the end
+            *(ptr + data.size()) = '\0';
         }
         returnValue->uint64[0] = mem_hndl;
 }
