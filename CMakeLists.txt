@@ -29,7 +29,6 @@ FIND_PACKAGE(cpp_redis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
-FIND_PACKAGE(SharemindLibDbCommon REQUIRED)
 FIND_PACKAGE(SharemindLibmodapi REQUIRED)
 FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
 INCLUDE_DIRECTORIES(
@@ -38,7 +37,6 @@ INCLUDE_DIRECTORIES(
     ${LogHard_INCLUDE_DIRS}
     ${SharemindLibConsensusService_INCLUDE_DIRS}
     ${SharemindLibDataStoreManager_INCLUDE_DIRS}
-    ${SharemindLibDbCommon_INCLUDE_DIRS}
     ${SharemindLibmodapi_INCLUDE_DIRS}
     ${SharemindPdkHeaders_INCLUDE_DIRS}
 )
@@ -50,7 +48,6 @@ ADD_DEFINITIONS(
     ${LogHard_DEFINITIONS}
     ${SharemindLibConsensusService_DEFINITIONS}
     ${SharemindLibDataStoreManager_DEFINITIONS}
-    ${SharemindLibDbCommon_DEFINITIONS}
     ${SharemindLibmodapi_DEFINITIONS}
     ${SharemindPdkHeaders_DEFINITIONS}
 )
@@ -65,7 +62,6 @@ TARGET_LINK_LIBRARIES(sharemind_mod_keydb
     ${CPP_REDIS_LIBRARIES}
     ${LogHard_LIBRARIES}
     ${SharemindLibConsensusService_LIBRARIES}
-    ${SharemindLibDbCommon_LIBRARIES}
 )
 
 INSTALL(TARGETS sharemind_mod_keydb LIBRARY DESTINATION "lib")
