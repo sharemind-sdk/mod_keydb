@@ -119,14 +119,14 @@ inline sharemind::ModuleData::HostConfiguration & getHostConf(SharemindModuleApi
 
 template<typename Func, typename... Args>
 cpp_redis::reply requestAndWait(cpp_redis::redis_client & client, Func && fun, Args && ...args) {
-        using reply_t = cpp_redis::reply;
-        std::promise<reply_t> rep;
-        auto future = rep.get_future();
-        auto cb = [&rep](reply_t & reply) {
-            rep.set_value(reply);
-        };
-        (client.*fun)(std::forward<Args>(args)..., cb).commit();
-        return future.get();
+    using reply_t = cpp_redis::reply;
+    std::promise<reply_t> rep;
+    auto future = rep.get_future();
+    auto cb = [&rep](reply_t & reply) {
+        rep.set_value(reply);
+    };
+    (client.*fun)(std::forward<Args>(args)..., cb).commit();
+    return future.get();
 }
 
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
@@ -134,69 +134,69 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   std::vector<std::string> & orderedKeys,
                   bool cleanUpOrderedKeys = false)
 {
-        auto & client = getClient(c);
-        auto & hostconf = getHostConf(c);
+    auto & client = getClient(c);
+    auto & hostconf = getHostConf(c);
 
-        std::set<std::string> keys;
-        uint64_t cursor = 0;
-        std::string str_cursor = "0";
+    std::set<std::string> keys;
+    uint64_t cursor = 0;
+    std::string str_cursor = "0";
 
-        using reply_t = cpp_redis::reply;
-        std::promise<reply_t> promise;
-        auto future = promise.get_future();
-        auto cb = [&promise](reply_t & reply) {
-            promise.set_value(reply);
-        };
-        // make the first request
-        client.send((std::vector<std::string>)
-                {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
-                cb).commit();
+    using reply_t = cpp_redis::reply;
+    std::promise<reply_t> promise;
+    auto future = promise.get_future();
+    auto cb = [&promise](reply_t & reply) {
+        promise.set_value(reply);
+    };
+    // make the first request
+    client.send((std::vector<std::string>)
+            {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
+            cb).commit();
 
-        do {
-            // get the response
-            auto reply = future.get();
-            auto & parts = reply.as_array();
-            str_cursor = parts[0].as_string();
-            std::istringstream iss(str_cursor);
-            iss >> cursor;
+    do {
+        // get the response
+        auto reply = future.get();
+        auto & parts = reply.as_array();
+        str_cursor = parts[0].as_string();
+        std::istringstream iss(str_cursor);
+        iss >> cursor;
 
-            if (cursor) {
-                // make the next request
-                promise = std::promise<reply_t>();
-                future = promise.get_future();
-                auto cb = [&promise](reply_t & reply) {
-                    promise.set_value(reply);
-                };
-                client.send((std::vector<std::string>)
-                        {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
-                        cb).commit();
-            }
-            // while the next response arrives store the prevoius response into set
-            auto & replies = parts[1].as_array();
-            for (auto & r : replies) {
-                keys.emplace(r.as_string());
-            }
-        } while (cursor);
-
-        // collect keys from the set into an ordered vector, while at the same time
-        // freeing the memory from set
-        for (auto it = keys.begin(); it != keys.end(); keys.erase(it++)) {
-            orderedKeys.emplace_back(std::move(*it));
+        if (cursor) {
+            // make the next request
+            promise = std::promise<reply_t>();
+            future = promise.get_future();
+            auto cb = [&promise](reply_t & reply) {
+                promise.set_value(reply);
+            };
+            client.send((std::vector<std::string>)
+                    {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
+                    cb).commit();
         }
-        std::vector<std::string> toDelete;
-        if (sharemind::intersection(orderedKeys, toDelete, c)) {
-            if (!toDelete.empty()) {
-                client.del(toDelete).commit();
-            }
-            if (cleanUpOrderedKeys) {
-                for (auto & k : toDelete) {
-                    auto it = std::lower_bound(orderedKeys.begin(), orderedKeys.end(), k);
-                    orderedKeys.erase(it);
-                }
-            }
-            return true;
+        // while the next response arrives store the prevoius response into set
+        auto & replies = parts[1].as_array();
+        for (auto & r : replies) {
+            keys.emplace(r.as_string());
         }
-        return false;
+    } while (cursor);
+
+    // collect keys from the set into an ordered vector, while at the same time
+    // freeing the memory from set
+    for (auto it = keys.begin(); it != keys.end(); keys.erase(it++)) {
+        orderedKeys.emplace_back(std::move(*it));
+    }
+    std::vector<std::string> toDelete;
+    if (sharemind::intersection(orderedKeys, toDelete, c)) {
+        if (!toDelete.empty()) {
+            client.del(toDelete).commit();
+        }
+        if (cleanUpOrderedKeys) {
+            for (auto & k : toDelete) {
+                auto it = std::lower_bound(orderedKeys.begin(), orderedKeys.end(), k);
+                orderedKeys.erase(it);
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 } /* namespace { */
