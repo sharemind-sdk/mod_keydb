@@ -59,38 +59,54 @@
 
 namespace {
 
+// names used for specific datastore namespaces
+constexpr std::array<const char *, 3> dataStores{{"keydb", "keydb_get", "keydb_scan"}};
+enum DataStoreNamespace {
+    NS_KEYDB = 0,
+    NS_GET = 1,
+    NS_SCAN = 2,
+    NS_MAX = NS_SCAN
+};
+static_assert(dataStores.size() == NS_MAX + 1, "DataStoreNamespace enum and dataStores array must be in sync!");
+
 inline void returnString(SharemindModuleApi0x1SyscallContext * c,
         SharemindCodeBlock * returnValue,
         const std::string & data)
 {
-        const uint64_t mem_hndl = c->publicAlloc(c, data.size() + 1);
-        if (mem_hndl) {
-            char * const ptr = static_cast<char * const>(c->publicMemPtrData(c, mem_hndl));
-            memcpy(ptr, data.c_str(), data.size());
-            // add the zero byte at the end
-            *(ptr + data.size()) = '\0';
-        }
-        returnValue->uint64[0] = mem_hndl;
+    const uint64_t mem_hndl = c->publicAlloc(c, data.size() + 1);
+    if (mem_hndl) {
+        char * const ptr = static_cast<char * const>(c->publicMemPtrData(c, mem_hndl));
+        memcpy(ptr, data.c_str(), data.size());
+        // add the zero byte at the end
+        *(ptr + data.size()) = '\0';
+    }
+    returnValue->uint64[0] = mem_hndl;
 }
 
-inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c, const char * ns) {
-        auto * const factory =
-            static_cast<SharemindDataStoreFactory * const>(
-                    c->processFacility(c, "DataStoreFactory"));
-        assert(factory && "DataStoreFactory facility is missing!");
+inline SharemindDataStoreFactory * getDataStoreFactory(SharemindModuleApi0x1SyscallContext * c) {
+    auto * const factory =
+        static_cast<SharemindDataStoreFactory * const>(
+                c->processFacility(c, "DataStoreFactory"));
+    if (!factory)
+        throw std::logic_error(
+                "DataStoreFactory is missing!");
+    return factory;
+}
 
-        return factory->get_datastore(factory, ns);
+inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c, DataStoreNamespace ns) {
+    auto * factory = getDataStoreFactory(c);
+    return factory->get_datastore(factory, dataStores[ns]);
 }
 
 template <typename T>
 inline T & getItem(SharemindModuleApi0x1SyscallContext * c, const char * name) {
-        auto * store = getDataStore(c, "keydb");
-        T * item = static_cast<T *>(store->get(store, name));
-        if (!item) {
-            throw std::logic_error(
-                    "Cannot get some process instance specific data. Make sure to call keydb_connect!");
-        }
-        return *item;
+    auto * store = getDataStore(c, NS_KEYDB);
+    T * item = static_cast<T *>(store->get(store, name));
+    if (!item) {
+        throw std::logic_error(
+                "Cannot get some process instance specific data. Make sure to call keydb_connect!");
+    }
+    return *item;
 }
 
 inline cpp_redis::redis_client & getClient(SharemindModuleApi0x1SyscallContext * c) {
@@ -188,28 +204,40 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         (void)args;
 
-        auto * store = getDataStore(c, "keydb");
-        auto * client = new cpp_redis::redis_client();
-        auto deleter = [] (void * p) { delete static_cast<cpp_redis::redis_client *>(p); };
-        store->set(store, "Client", client, deleter);
+        if (crefs[0].size < 1)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         auto it = mod.hostMap.find(key);
         if (it == mod.hostMap.end()) {
             mod.logger.error() << "Could not find the host \"" << key
                 << "\" in the module hosts configuration.";
-            return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         }
         auto & hc = it->second;
-        client->connect(hc.hostname, hc.port);
 
+        auto * store = getDataStore(c, NS_KEYDB);
+        auto * client = new cpp_redis::redis_client();
+        auto deleter = [] (void * p) { delete static_cast<cpp_redis::redis_client *>(p); };
+
+        store->set(store, "Client", client, deleter);
         store->set(store, "HostConfiguration", &hc, nullptr);
+
+        client->connect(hc.hostname, hc.port);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
         (void)args;
+
         auto & client = getClient(c);
         client.sync_commit();
         client.disconnect();
+
+        auto * factory = getDataStoreFactory(c);
+        for (auto ns : dataStores) {
+            auto * store = factory->get_datastore(factory, ns);
+            store->clear(store);
+        }
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
@@ -219,6 +247,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         bool isArray = args[0].uint64[0];
+
+        if (isArray && crefs[1].size < 1)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         // arrays need size -1, scalars do not need it
@@ -246,7 +277,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         if (crefs->size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1u);
+        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
@@ -256,7 +287,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         // store returned data in heap
         std::string *heapString = new std::string(data);
 
-        auto * store = getDataStore(c, "keydb_get");
+        auto * store = getDataStore(c, NS_GET);
 
         uint64_t id = 0;
         std::string id_str;
@@ -277,12 +308,18 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         mod.logger.debug() << "keydb_get";
 
-        auto * store = getDataStore(c, "keydb_get");
+        auto * store = getDataStore(c, NS_GET);
 
         std::string name = std::to_string(args[0].uint64[0]);
         auto * data = static_cast<std::string *>(store->get(store, name.c_str()));
+        if (!data)
+            throw std::logic_error(
+                    "Cannot get instance of data, was keydb_get_size called before?");
 
-        assert(data);
+        mod.logger.debug() << "reference size, data size: "
+            << (int) refs[0].size << ", " << (int) data->size();
+
+        assert(refs[0].size == data->size() || refs[0].size == data->size()+1);
         // copy data to secrec
         memcpy(refs[0].pData, data->data(), data->size());
 
@@ -293,7 +330,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
 SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         (void) args;
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1u);
+        if (crefs[0].size < 1)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
+        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         getClient(c).del({key}).commit();
     );
 
@@ -302,7 +342,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         uint64_t * cl_cursor = static_cast<uint64_t *>(refs[0].pData);
         assert(cl_cursor);
 
-        auto * store = getDataStore(c, "keydb_scan");
+        auto * store = getDataStore(c, NS_SCAN);
 
         std::vector<std::string> * scan = nullptr;
         std::string uid = *cl_cursor ? std::to_string(*cl_cursor) : "1";
@@ -314,7 +354,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
                 uid = std::to_string(id);
             }
 
-            assert(crefs[0].size > 0);
+            if (crefs[0].size < 1)
+                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
             const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
             scan = new std::vector<std::string>();
             auto deleter = [] (void * p) { delete static_cast<std::vector<std::string> *>(p); };
@@ -345,6 +387,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
 SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
         (void) args;
         mod.logger.debug() << "keydb_clean";
+
+        if (crefs[0].size < 1)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
         const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
 
         std::vector<std::string> orderedKeys;
