@@ -207,6 +207,14 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         if (crefs[0].size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
+        auto * store = getDataStore(c, NS_KEYDB);
+
+        if (store->get(store, "Client")) {
+            mod.logger.error() << "You have already called keydb_connect!\n"
+                               << "First call keydb_disconnect to drop the old connection.";
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        }
+
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         auto it = mod.hostMap.find(key);
         if (it == mod.hostMap.end()) {
@@ -216,7 +224,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         }
         auto & hc = it->second;
 
-        auto * store = getDataStore(c, NS_KEYDB);
         auto * client = new cpp_redis::redis_client();
         auto deleter = [] (void * p) { delete static_cast<cpp_redis::redis_client *>(p); };
 
