@@ -16,6 +16,7 @@
  *
  * For further information, please contact us at sharemind@cyber.ee.
  */
+
 #include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <sstream>
