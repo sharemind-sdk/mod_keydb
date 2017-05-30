@@ -76,3 +76,18 @@ TARGET_LINK_LIBRARIES(sharemind_mod_keydb
 )
 
 INSTALL(TARGETS sharemind_mod_keydb LIBRARY DESTINATION "lib")
+
+CONFIGURE_FILE(
+  "${CMAKE_CURRENT_SOURCE_DIR}/SharemindModKeyDbConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/SharemindModKeyDbConfig.cmake"
+  @ONLY)
+INSTALL(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/SharemindModKeyDbConfig.cmake"
+  DESTINATION "lib/SharemindModKeyDb")
+CONFIGURE_FILE(
+  "${CMAKE_CURRENT_SOURCE_DIR}/SharemindModKeyDbConfigVersion.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/SharemindModKeyDbConfigVersion.cmake"
+  @ONLY)
+INSTALL(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/SharemindModKeyDbConfigVersion.cmake"
+  DESTINATION "lib/SharemindModKeyDb")
