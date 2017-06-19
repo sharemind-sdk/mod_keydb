@@ -41,7 +41,9 @@ FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
 FIND_PACKAGE(SharemindLibmodapi REQUIRED)
+FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
 FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
+
 INCLUDE_DIRECTORIES(
     ${Boost_INCLUDE_DIRS}
     ${CPP_REDIS_INCLUDE_DIRS}
@@ -49,6 +51,7 @@ INCLUDE_DIRECTORIES(
     ${SharemindLibConsensusService_INCLUDE_DIRS}
     ${SharemindLibDataStoreManager_INCLUDE_DIRS}
     ${SharemindLibmodapi_INCLUDE_DIRS}
+    ${SharemindLibProcessFacility_INCLUDE_DIRS}
     ${SharemindPdkHeaders_INCLUDE_DIRS}
 )
 
@@ -60,6 +63,7 @@ ADD_DEFINITIONS(
     ${SharemindLibConsensusService_DEFINITIONS}
     ${SharemindLibDataStoreManager_DEFINITIONS}
     ${SharemindLibmodapi_DEFINITIONS}
+    ${SharemindLibProcessFacility_DEFINITIONS}
     ${SharemindPdkHeaders_DEFINITIONS}
 )
 
