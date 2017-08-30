@@ -17,24 +17,19 @@
 # For further information, please contact us at sharemind@cyber.ee.
 #
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
-PROJECT(SHAREMIND_MOD_KEYDB)
-SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
-                      ${CMAKE_MODULE_PATH})
-
-SET(SHAREMIND_MOD_KEYDB_VERSION "0.1.0")
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+PROJECT(SharemindModKeyDb VERSION 0.1.0 LANGUAGES CXX)
 
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/config.local" OPTIONAL)
 INCLUDE("${CMAKE_CURRENT_BINARY_DIR}/config.local" OPTIONAL)
 
-ADD_COMPILE_OPTIONS(
-  "-std=c++11" "-Wall" "-Wextra" "-O2" "-fPIC"
-  "$<$<NOT:$<STREQUAL:$<CONFIGURATION>,Release>>:-ggdb>"
-  "$<$<NOT:$<STREQUAL:$<CONFIGURATION>,Release>>:-fno-omit-frame-pointer>"
-  "$<$<STREQUAL:$<CONFIGURATION>,Release>:-DNDEBUG>"
-  "$<$<STREQUAL:$<CONFIGURATION>,Release>:-fomit-frame-pointer>"
-)
+FIND_PACKAGE(SharemindCMakeHelpers REQUIRED)
 
+SharemindSetProjectVersion()
+
+
+SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
+                      ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(cpp_redis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
@@ -44,39 +39,62 @@ FIND_PACKAGE(SharemindLibModapi REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
 FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
 
-INCLUDE_DIRECTORIES(
-    ${Boost_INCLUDE_DIRS}
-    ${CPP_REDIS_INCLUDE_DIRS}
-    ${LogHard_INCLUDE_DIRS}
-    ${SharemindLibConsensusService_INCLUDE_DIRS}
-    ${SharemindLibDataStoreManager_INCLUDE_DIRS}
-    ${SharemindLibModapi_INCLUDE_DIRS}
-    ${SharemindLibProcessFacility_INCLUDE_DIRS}
-    ${SharemindPdkHeaders_INCLUDE_DIRS}
+
+# The module:
+SharemindSetCxx11CompileOptions()
+FILE(GLOB_RECURSE SharemindModKeyDb_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+FILE(GLOB_RECURSE SharemindModKeyDb_HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
+SharemindAddSharedLibrary("sharemind_mod_keydb"
+    MODULE
+    OUTPUT_NAME "sharemind_mod_keydb"
+    SOURCES
+        ${SharemindModKeyDb_SOURCES}
+        ${SharemindModKeyDb_HEADERS}
+    INCLUDE_DIRECTORIES
+        ${Boost_INCLUDE_DIRS}
+        ${CPP_REDIS_INCLUDE_DIRS}
+        ${LogHard_INCLUDE_DIRS}
+        ${SharemindLibConsensusService_INCLUDE_DIRS}
+        ${SharemindLibDataStoreManager_INCLUDE_DIRS}
+        ${SharemindLibModapi_INCLUDE_DIRS}
+        ${SharemindLibProcessFacility_INCLUDE_DIRS}
+        ${SharemindPdkHeaders_INCLUDE_DIRS}
+    LEGACY_DEFINITIONS
+        ${LogHard_DEFINITIONS}
+        ${SharemindLibConsensusService_DEFINITIONS}
+        ${SharemindLibDataStoreManager_DEFINITIONS}
+        ${SharemindLibModapi_DEFINITIONS}
+        ${SharemindLibProcessFacility_DEFINITIONS}
+        ${SharemindPdkHeaders_DEFINITIONS}
+    LINK_LIBRARIES
+        ${Boost_LIBRARIES}
+        ${CPP_REDIS_LIBRARIES}
+        ${LogHard_LIBRARIES}
+        ${SharemindLibConsensusService_LIBRARIES}
 )
 
-ADD_DEFINITIONS(
-    "-D__STDC_LIMIT_MACROS"
-    "-D__STDC_CONSTANT_MACROS"
-    "-D__STDC_FORMAT_MACROS"
-    ${LogHard_DEFINITIONS}
-    ${SharemindLibConsensusService_DEFINITIONS}
-    ${SharemindLibDataStoreManager_DEFINITIONS}
-    ${SharemindLibModapi_DEFINITIONS}
-    ${SharemindLibProcessFacility_DEFINITIONS}
-    ${SharemindPdkHeaders_DEFINITIONS}
+
+# Packaging:
+SharemindSetupPackaging()
+SharemindAddComponentPackage("lib"
+    NAME "libsharemind-mod-keydb"
+    DESCRIPTION "Sharemind KeyDB module"
+    DEB_SECTION "libs"
+    DEB_DEPENDS
+        "libloghard (>= 0.1.0)"
+        "libcpp-redis"
+        "libsharemind-consensusservice (>= 0.1.0)"
+        "libstdc++6 (>= 4.8.0)"
+        "libc6 (>= 2.19)"
 )
-
-FILE(GLOB_RECURSE KEYDB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-FILE(GLOB_RECURSE KEYDB_HEADERS_P "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h")
-
-ADD_LIBRARY(sharemind_mod_keydb MODULE
-            ${KEYDB_SOURCES} ${KEYDB_HEADERS} ${KEYDB_HEADERS_P})
-TARGET_LINK_LIBRARIES(sharemind_mod_keydb
-    ${Boost_LIBRARIES}
-    ${CPP_REDIS_LIBRARIES}
-    ${LogHard_LIBRARIES}
-    ${SharemindLibConsensusService_LIBRARIES}
+SharemindAddComponentPackage("debug"
+    NAME "libsharemind-mod-keydb-dbg"
+    DESCRIPTION "Sharemind KeyDB module debug symbols"
+    DEB_SECTION "debug"
+    DEB_DEPENDS
+        "libsharemind-mod-keydb (= ${SharemindModKeyDb_VERSION})"
 )
+SharemindPackagingFinalize()
 
-INSTALL(TARGETS sharemind_mod_keydb LIBRARY DESTINATION "lib")
