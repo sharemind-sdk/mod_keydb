@@ -21,7 +21,7 @@
 #define SHAREMIND_DECLARESYSCALL_H
 
 #include <sharemind/extern_c.h>
-#include <sharemind/libmodapi/api_0x1.h>
+#include <sharemind/module-apis/api_0x1.h>
 
 
 #define SHAREMIND_DECLARE_SYSCALL(name,...) \

@@ -35,8 +35,8 @@ FIND_PACKAGE(cpp_redis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
-FIND_PACKAGE(SharemindLibModapi REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
+FIND_PACKAGE(SharemindModuleApis REQUIRED)
 FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
 
 
@@ -58,14 +58,13 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${LogHard_INCLUDE_DIRS}
         ${SharemindLibConsensusService_INCLUDE_DIRS}
         ${SharemindLibDataStoreManager_INCLUDE_DIRS}
-        ${SharemindLibModapi_INCLUDE_DIRS}
         ${SharemindLibProcessFacility_INCLUDE_DIRS}
+        ${SharemindModuleApis_INCLUDE_DIRS}
         ${SharemindPdkHeaders_INCLUDE_DIRS}
     LEGACY_DEFINITIONS
         ${LogHard_DEFINITIONS}
         ${SharemindLibConsensusService_DEFINITIONS}
         ${SharemindLibDataStoreManager_DEFINITIONS}
-        ${SharemindLibModapi_DEFINITIONS}
         ${SharemindLibProcessFacility_DEFINITIONS}
         ${SharemindPdkHeaders_DEFINITIONS}
     LINK_LIBRARIES

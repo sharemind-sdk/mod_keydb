@@ -21,8 +21,8 @@
 #include <LogHard/Logger.h>
 #include <sharemind/EndianMacros.h>
 #include <sharemind/libconsensusservice.h>
-#include <sharemind/libmodapi/api_0x1.h>
 #include <sharemind/libprocessfacility.h>
+#include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/PotentiallyVoidTypeInfo.h>
 #include "Intersection.h"
 #include "ModuleData.h"

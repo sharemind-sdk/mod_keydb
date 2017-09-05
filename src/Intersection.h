@@ -21,7 +21,7 @@
 #define SHAREMIND_MOD_KEYDB_INTERSECTION_H
 
 #include <sharemind/libconsensusservice.h>
-#include <sharemind/libmodapi/api_0x1.h>
+#include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/visibility.h>
 #include <string>
 #include <vector>
