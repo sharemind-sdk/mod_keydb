@@ -71,7 +71,6 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${Boost_LIBRARIES}
         ${CPP_REDIS_LIBRARIES}
         ${LogHard_LIBRARIES}
-        ${SharemindLibConsensusService_LIBRARIES}
 )
 
 
@@ -84,7 +83,6 @@ SharemindAddComponentPackage("lib"
     DEB_DEPENDS
         "libloghard (>= 0.1.0)"
         "libcpp-redis"
-        "libsharemind-consensusservice (>= 0.1.0)"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
 )
