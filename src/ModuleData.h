@@ -20,7 +20,6 @@
 #ifndef SHAREMIND_MOD_KEYDB_MODULEDATA_H
 #define SHAREMIND_MOD_KEYDB_MODULEDATA_H
 
-#include <cpp_redis/redis_client.hpp>
 #include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
 #include <string>
