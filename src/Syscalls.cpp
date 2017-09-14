@@ -148,8 +148,10 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         promise.set_value(reply);
     };
     // make the first request
-    client.send((std::vector<std::string>)
-            {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
+    client.send(
+            std::vector<std::string>{"SCAN", str_cursor,
+                                     "MATCH", pattern,
+                                     "COUNT", hostconf.scanCount},
             cb).commit();
 
     do {
@@ -167,8 +169,10 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
             auto cb = [&promise](reply_t & reply) {
                 promise.set_value(reply);
             };
-            client.send((std::vector<std::string>)
-                    {"SCAN", str_cursor, "MATCH", pattern, "COUNT", hostconf.scanCount},
+            client.send(
+                    std::vector<std::string>{"SCAN", str_cursor,
+                                             "MATCH", pattern,
+                                             "COUNT", hostconf.scanCount},
                     cb).commit();
         }
         // while the next response arrives store the prevoius response into set
@@ -262,7 +266,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
         // arrays need size -1, scalars do not need it
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - isArray);
 
-        mod.logger.debug() << "Set with key \"" << key << "\" size = " << (int)value.size();
+        mod.logger.debug() << "Set with key \"" << key << "\" size = "
+                           << value.size();
         std::vector<std::string> command;
         command.reserve(4);
         command.emplace_back("SET");
@@ -324,7 +329,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
                     "Cannot get instance of data, was keydb_get_size called before?");
 
         mod.logger.debug() << "reference size, data size: "
-            << (int) refs[0].size << ", " << (int) data->size();
+            << refs[0].size << ", " << data->size();
 
         assert(refs[0].size == data->size() || refs[0].size == data->size()+1);
         // copy data to secrec
