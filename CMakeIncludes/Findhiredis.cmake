@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2016 Cybernetica
+# Copyright (C) Cybernetica
 #
 # Research/Commercial License Usage
 # Licensees holding a valid Research License or Commercial License
@@ -19,24 +19,24 @@
 
 ################################################################################
 #
-# CMake script for finding cpp_redis.
+# CMake script for finding hiredis.
 # The default CMake search process is used to locate files.
 #
 # This script creates the following variables:
-#  CPP_REDIS_FOUND: Boolean that indicates if the package was found
-#  CPP_REDIS_INCLUDE_DIRS: Paths to the necessary header files
-#  CPP_REDIS_LIBRARIES: Package libraries
+#  HIREDIS_FOUND: Boolean that indicates if the package was found
+#  HIREDIS_INCLUDE_DIRS: Paths to the necessary header files
+#  HIREDIS_LIBRARIES: Package libraries
 #
 ################################################################################
 
 # Find headers and libraries
 FIND_PATH(
-    CPP_REDIS_INCLUDE_DIR
+    HIREDIS_INCLUDE_DIR
     NAMES
-        cpp_redis/cpp_redis
+        hiredis/hiredis.h
     HINTS
-        $ENV{CPP_REDIS_ROOT}
-        ${CPP_REDIS_ROOT}
+        $ENV{HIREDIS_ROOT}
+        ${HIREDIS_ROOT}
     PATHS
         /usr/local
         /usr
@@ -46,12 +46,12 @@ FIND_PATH(
 )
 
 FIND_LIBRARY(
-    CPP_REDIS_LIBRARY
+    HIREDIS_LIBRARY
     NAMES
-        cpp_redis
+        hiredis
     HINTS
-        $ENV{CPP_REDIS_ROOT}
-        ${CPP_REDIS_ROOT}
+        $ENV{HIREDIS_ROOT}
+        ${HIREDIS_ROOT}
     PATHS
         /opt/local
         /usr/local
@@ -60,20 +60,20 @@ FIND_LIBRARY(
         lib
 )
 
-# Set CPP_REDIS_FOUND honoring the QUIET and REQUIRED arguments
+# Set HIREDIS_FOUND honoring the QUIET and REQUIRED arguments
 INCLUDE(FindPackageHandleStandardArgs)
 FIND_PACKAGE_HANDLE_STANDARD_ARGS(
-    cpp_redis
-    "Could NOT find cpp_redis"
-    CPP_REDIS_LIBRARY CPP_REDIS_INCLUDE_DIR)
+    hiredis
+    "Could NOT find hiredis"
+    HIREDIS_LIBRARY HIREDIS_INCLUDE_DIR)
 
 # Output variables
-IF(CPP_REDIS_FOUND)
+IF(HIREDIS_FOUND)
     # Include dirs
-    SET(CPP_REDIS_INCLUDE_DIRS ${CPP_REDIS_INCLUDE_DIR})
+    SET(HIREDIS_INCLUDE_DIRS ${HIREDIS_INCLUDE_DIR})
     # Libraries
-    SET(CPP_REDIS_LIBRARIES ${CPP_REDIS_LIBRARY})
-ENDIF(CPP_REDIS_FOUND)
+    SET(HIREDIS_LIBRARIES ${HIREDIS_LIBRARY})
+ENDIF()
 
 # Advanced options for not cluttering the cmake UIs:
-MARK_AS_ADVANCED(CPP_REDIS_INCLUDE_DIR CPP_REDIS_LIBRARY)
+MARK_AS_ADVANCED(HIREDIS_INCLUDE_DIR HIREDIS_LIBRARY)

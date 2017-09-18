@@ -31,7 +31,18 @@ SharemindSetProjectVersion()
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost REQUIRED)
-FIND_PACKAGE(cpp_redis REQUIRED)
+FIND_PACKAGE(cpp_redis)
+IF(CPP_REDIS_FOUND)
+    MESSAGE(STATUS "Using cpp_redis.")
+    ADD_DEFINITIONS("-DUSE_CPP_REDIS")
+ELSE()
+    FIND_PACKAGE(hiredis REQUIRED)
+    IF(NOT HIREDIS_FOUND)
+        MESSAGE(FATAL_ERROR "Neither cpp_redis nor hiredis found!")
+    ENDIF()
+    MESSAGE(STATUS "Using hiredis.")
+    ADD_DEFINITIONS("-DUSE_HIREDIS")
+ENDIF()
 FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
@@ -55,6 +66,7 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
     INCLUDE_DIRECTORIES
         ${Boost_INCLUDE_DIRS}
         ${CPP_REDIS_INCLUDE_DIRS}
+        ${HIREDIS_INCLUDE_DIRS}
         ${LogHard_INCLUDE_DIRS}
         ${SharemindLibConsensusService_INCLUDE_DIRS}
         ${SharemindLibDataStoreManager_INCLUDE_DIRS}
@@ -70,6 +82,7 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
     LINK_LIBRARIES
         ${Boost_LIBRARIES}
         ${CPP_REDIS_LIBRARIES}
+        ${HIREDIS_LIBRARIES}
         ${LogHard_LIBRARIES}
 )
 
