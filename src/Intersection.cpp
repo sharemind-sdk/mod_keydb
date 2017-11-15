@@ -49,7 +49,7 @@ struct ConsensusData {
 GlobalIdSizeType readSize(void const * data) noexcept {
     GlobalIdSizeType size;
     std::memcpy(&size, data, sizeof(size));
-    return sharemind::netToHostOrder(size);
+    return sharemind::sharemindNetToHostOrder(size);
 };
 
 
