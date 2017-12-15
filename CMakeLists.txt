@@ -34,14 +34,37 @@ FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(cpp_redis)
 IF(CPP_REDIS_FOUND)
     MESSAGE(STATUS "Using cpp_redis.")
-    ADD_DEFINITIONS("-DUSE_CPP_REDIS")
+    SET(SHAREMIND_REDIS_LIBRARIES ${CPP_REDIS_LIBRARIES})
+    SET(SHAREMIND_REDIS_INCLUDE_DIRS ${CPP_REDIS_INCLUDE_DIRS})
+    SET(SHAREMIND_REDIS_DEFINITIONS "-DUSE_CPP_REDIS")
+    SET(SHAREMIND_REDIS_DEB_DEPENDENCIES "libcpp-redis")
 ELSE()
     FIND_PACKAGE(hiredis REQUIRED)
     IF(NOT HIREDIS_FOUND)
         MESSAGE(FATAL_ERROR "Neither cpp_redis nor hiredis found!")
     ENDIF()
-    MESSAGE(STATUS "Using hiredis.")
-    ADD_DEFINITIONS("-DUSE_HIREDIS")
+    FUNCTION(GET_HIREDIS_VERSION out)
+        SET(srcFile "${CMAKE_CURRENT_BINARY_DIR}/hiredisVersion.cpp")
+        FILE(WRITE "${srcFile}"  "#include <hiredis/hiredis.h>\n")
+        FILE(APPEND "${srcFile}" "#include <iostream>\n")
+        FILE(APPEND "${srcFile}" "#define S2(s) #s\n")
+        FILE(APPEND "${srcFile}" "#define S(s) S2(s)\n")
+        FILE(APPEND "${srcFile}" "using namespace std;\n")
+        FILE(APPEND "${srcFile}"
+             "int main() { cout << S(HIREDIS_SONAME) << endl; }\n")
+        TRY_RUN(runResult compileResult "${CMAKE_CURRENT_BINARY_DIR}"
+                "${srcFile}" RUN_OUTPUT_VARIABLE RUN_OUTPUT)
+        IF("${compileResult}" AND (NOT "${runResult}"))
+            STRING(STRIP  "${RUN_OUTPUT}" RUN_OUTPUT)
+            SET(HIREDIS_VERSION "${RUN_OUTPUT}" PARENT_SCOPE)
+        ENDIF()
+    ENDFUNCTION()
+    GET_HIREDIS_VERSION(HIREDIS_VERSION)
+    MESSAGE(STATUS "Using hiredis ${HIREDIS_VERSION}")
+    SET(SHAREMIND_REDIS_LIBRARIES ${HIREDIS_LIBRARIES})
+    SET(SHAREMIND_REDIS_INCLUDE_DIRS ${HIREDIS_INCLUDE_DIRS})
+    SET(SHAREMIND_REDIS_DEFINITIONS "-DUSE_HIREDIS")
+    SET(SHAREMIND_REDIS_DEB_DEPENDENCIES "libhiredis${HIREDIS_VERSION}")
 ENDIF()
 FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
@@ -65,9 +88,8 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${SharemindModKeyDb_HEADERS}
     INCLUDE_DIRECTORIES
         ${Boost_INCLUDE_DIRS}
-        ${CPP_REDIS_INCLUDE_DIRS}
-        ${HIREDIS_INCLUDE_DIRS}
         ${LogHard_INCLUDE_DIRS}
+        ${SHAREMIND_REDIS_INCLUDE_DIRS}
         ${SharemindLibConsensusService_INCLUDE_DIRS}
         ${SharemindLibDataStoreManager_INCLUDE_DIRS}
         ${SharemindLibProcessFacility_INCLUDE_DIRS}
@@ -75,15 +97,15 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${SharemindPdkHeaders_INCLUDE_DIRS}
     LEGACY_DEFINITIONS
         ${LogHard_DEFINITIONS}
+        ${SHAREMIND_REDIS_DEFINITIONS}
         ${SharemindLibConsensusService_DEFINITIONS}
         ${SharemindLibDataStoreManager_DEFINITIONS}
         ${SharemindLibProcessFacility_DEFINITIONS}
         ${SharemindPdkHeaders_DEFINITIONS}
     LINK_LIBRARIES
         ${Boost_LIBRARIES}
-        ${CPP_REDIS_LIBRARIES}
-        ${HIREDIS_LIBRARIES}
         ${LogHard_LIBRARIES}
+        ${SHAREMIND_REDIS_LIBRARIES}
 )
 
 
@@ -95,7 +117,7 @@ SharemindAddComponentPackage("lib"
     DEB_SECTION "libs"
     DEB_DEPENDS
         "libloghard (>= 0.1.0)"
-        "libcpp-redis"
+        "${SHAREMIND_REDIS_DEB_DEPENDENCIES}"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
 )
