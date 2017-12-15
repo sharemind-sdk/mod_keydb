@@ -67,13 +67,32 @@ FIND_PACKAGE_HANDLE_STANDARD_ARGS(
     "Could NOT find hiredis"
     HIREDIS_LIBRARY HIREDIS_INCLUDE_DIR)
 
+FUNCTION(GET_HIREDIS_VERSION out)
+    SET(srcFile "${CMAKE_CURRENT_BINARY_DIR}/hiredisVersion.cpp")
+    FILE(WRITE "${srcFile}"  "#include <hiredis/hiredis.h>\n")
+    FILE(APPEND "${srcFile}" "#include <iostream>\n")
+    FILE(APPEND "${srcFile}" "#define S2(s) #s\n")
+    FILE(APPEND "${srcFile}" "#define S(s) S2(s)\n")
+    FILE(APPEND "${srcFile}" "using namespace std;\n")
+    FILE(APPEND "${srcFile}"
+         "int main() { cout << S(HIREDIS_SONAME) << endl; }\n")
+    TRY_RUN(runResult compileResult "${CMAKE_CURRENT_BINARY_DIR}"
+            "${srcFile}" RUN_OUTPUT_VARIABLE RUN_OUTPUT)
+    IF("${compileResult}" AND (NOT "${runResult}"))
+        STRING(STRIP  "${RUN_OUTPUT}" RUN_OUTPUT)
+        SET(HIREDIS_VERSION "${RUN_OUTPUT}" PARENT_SCOPE)
+    ENDIF()
+ENDFUNCTION()
+
 # Output variables
 IF(HIREDIS_FOUND)
     # Include dirs
     SET(HIREDIS_INCLUDE_DIRS ${HIREDIS_INCLUDE_DIR})
     # Libraries
     SET(HIREDIS_LIBRARIES ${HIREDIS_LIBRARY})
+    # Version
+    GET_HIREDIS_VERSION(HIREDIS_VERSION)
 ENDIF()
 
 # Advanced options for not cluttering the cmake UIs:
-MARK_AS_ADVANCED(HIREDIS_INCLUDE_DIR HIREDIS_LIBRARY)
+MARK_AS_ADVANCED(HIREDIS_INCLUDE_DIR HIREDIS_LIBRARY HIREDIS_VERSION)
