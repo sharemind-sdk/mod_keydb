@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2016 Cybernetica
+# Copyright (C) Cybernetica
 #
 # Research/Commercial License Usage
 # Licensees holding a valid Research License or Commercial License
@@ -31,25 +31,7 @@ SharemindSetProjectVersion()
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost REQUIRED)
-FIND_PACKAGE(hiredis)
-IF(HIREDIS_FOUND)
-    MESSAGE(STATUS "Using hiredis ${HIREDIS_VERSION}")
-    SET(SHAREMIND_REDIS_LIBRARIES ${HIREDIS_LIBRARIES})
-    SET(SHAREMIND_REDIS_INCLUDE_DIRS ${HIREDIS_INCLUDE_DIRS})
-    SET(SHAREMIND_REDIS_DEFINITIONS "-DUSE_HIREDIS")
-    SET(SHAREMIND_REDIS_DEB_DEPENDENCIES "libhiredis${HIREDIS_VERSION}")
-ELSE()
-    FIND_PACKAGE(cpp_redis)
-    IF(NOT CPP_REDIS_FOUND)
-        MESSAGE(FATAL_ERROR "Neither cpp_redis nor hiredis found!")
-    ENDIF()
-    MESSAGE(STATUS "Using cpp_redis.")
-    SET(SHAREMIND_REDIS_LIBRARIES ${CPP_REDIS_LIBRARIES})
-    SET(SHAREMIND_REDIS_INCLUDE_DIRS ${CPP_REDIS_INCLUDE_DIRS})
-    SET(SHAREMIND_REDIS_DEFINITIONS "-DUSE_CPP_REDIS")
-    SET(SHAREMIND_REDIS_DEB_DEPENDENCIES "libcpp-redis")
-ENDIF()
-
+FIND_PACKAGE(hiredis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
@@ -72,8 +54,8 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${SharemindModKeyDb_HEADERS}
     INCLUDE_DIRECTORIES
         ${Boost_INCLUDE_DIRS}
+        ${HIREDIS_INCLUDE_DIRS}
         ${LogHard_INCLUDE_DIRS}
-        ${SHAREMIND_REDIS_INCLUDE_DIRS}
         ${SharemindLibConsensusService_INCLUDE_DIRS}
         ${SharemindLibDataStoreManager_INCLUDE_DIRS}
         ${SharemindLibProcessFacility_INCLUDE_DIRS}
@@ -81,15 +63,14 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${SharemindPdkHeaders_INCLUDE_DIRS}
     LEGACY_DEFINITIONS
         ${LogHard_DEFINITIONS}
-        ${SHAREMIND_REDIS_DEFINITIONS}
         ${SharemindLibConsensusService_DEFINITIONS}
         ${SharemindLibDataStoreManager_DEFINITIONS}
         ${SharemindLibProcessFacility_DEFINITIONS}
         ${SharemindPdkHeaders_DEFINITIONS}
     LINK_LIBRARIES
         ${Boost_LIBRARIES}
+        ${HIREDIS_LIBRARIES}
         ${LogHard_LIBRARIES}
-        ${SHAREMIND_REDIS_LIBRARIES}
 )
 
 
@@ -101,7 +82,7 @@ SharemindAddComponentPackage("lib"
     DEB_SECTION "libs"
     DEB_DEPENDS
         "libloghard (>= 0.1.0)"
-        "${SHAREMIND_REDIS_DEB_DEPENDENCIES}"
+        "libhiredis${HIREDIS_VERSION}"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
 )

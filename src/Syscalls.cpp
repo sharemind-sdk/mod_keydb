@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Cybernetica
+ * Copyright (C) Cybernetica
  *
  * Research/Commercial License Usage
  * Licensees holding a valid Research License or Commercial License
@@ -19,20 +19,12 @@
 
 
 #include <algorithm>
-#if defined(USE_CPP_REDIS)
-#include <cpp_redis/cpp_redis>
-#elif defined(USE_HIREDIS)
 #include <exception>
-#endif
 #include <future>
-#ifdef USE_HIREDIS
 #include <hiredis/hiredis.h>
-#endif
 #include <iostream>
 #include <LogHard/Logger.h>
-#ifdef USE_HIREDIS
 #include <memory>
-#endif
 #include <set>
 #include <sharemind/datastoreapi.h>
 #include <sharemind/module-apis/api_0x1.h>
@@ -40,9 +32,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#ifdef USE_HIREDIS
 #include <type_traits>
-#endif
 #include <vector>
 #include "Intersection.h"
 #include "ModuleData.h"
@@ -123,26 +113,6 @@ inline T & getItem(SharemindModuleApi0x1SyscallContext * c, const char * name) {
     return *item;
 }
 
-#if defined(USE_CPP_REDIS)
-template<typename Func, typename... Args>
-cpp_redis::reply requestAndWait(cpp_redis::redis_client & client,
-                                Func && fun,
-                                Args && ...args)
-{
-    using reply_t = cpp_redis::reply;
-    std::promise<reply_t> rep;
-    auto future = rep.get_future();
-    auto cb = [&rep](reply_t & reply) {
-        rep.set_value(reply);
-    };
-    (client.*fun)(std::forward<Args>(args)..., cb).commit();
-    return future.get();
-}
-
-inline cpp_redis::redis_client & getClient(
-        SharemindModuleApi0x1SyscallContext * c)
-{ return getItem<cpp_redis::redis_client>(c, "Client"); }
-#elif defined(USE_HIREDIS)
 class SynchronousRedisClient {
 
 public: /* Types: */
@@ -318,7 +288,6 @@ private: /* Fields: */
 inline SynchronousRedisClient & getClient(SharemindModuleApi0x1SyscallContext * c) {
     return getItem<SynchronousRedisClient>(c, "Client");
 }
-#endif
 
 inline sharemind::ModuleData::HostConfiguration & getHostConf(SharemindModuleApi0x1SyscallContext * c) {
     return getItem<sharemind::ModuleData::HostConfiguration>(c, "HostConfiguration");
@@ -336,76 +305,30 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     uint64_t cursor = 0;
     std::string str_cursor = "0";
 
-    #ifdef USE_CPP_REDIS
-    using reply_t = cpp_redis::reply;
-    std::promise<reply_t> promise;
-    auto future = promise.get_future();
-    auto cb = [&promise](reply_t & reply) {
-        promise.set_value(reply);
-    };
-    #endif
-
     // make the first request
-    #if defined(USE_CPP_REDIS)
-    client.send(
-            std::vector<std::string>{"SCAN", str_cursor,
-                                     "MATCH", pattern,
-                                     "COUNT", hostconf.scanCount},
-            cb).commit();
-    #elif defined(USE_HIREDIS)
     auto reply(client.command("SCAN %s MATCH %s COUNT %s",
                               str_cursor.c_str(),
                               pattern.c_str(),
                               hostconf.scanCount.c_str()));
-    #endif
-
     do {
         // get the response
-        #if defined(USE_CPP_REDIS)
-        auto reply = future.get();
-        auto & parts = reply.as_array();
-        str_cursor = parts[0].as_string();
-        #elif defined(USE_HIREDIS)
         auto const parts(reply.asArray());
         str_cursor = parts[0].asString();
-        #endif
+
         std::istringstream iss(str_cursor);
         iss >> cursor;
 
         if (cursor) {
             // make the next request
-            #if defined(USE_CPP_REDIS)
-            promise = std::promise<reply_t>();
-            future = promise.get_future();
-            auto cb = [&promise](reply_t & reply) {
-                promise.set_value(reply);
-            };
-            client.send(
-                    std::vector<std::string>{"SCAN", str_cursor,
-                                             "MATCH", pattern,
-                                             "COUNT", hostconf.scanCount},
-                    cb).commit();
-            #elif defined(USE_HIREDIS)
             reply = client.command("SCAN %s MATCH %s COUNT %s",
                                    str_cursor.c_str(),
                                    pattern.c_str(),
                                    hostconf.scanCount.c_str());
-            #endif
         }
         // while the next response arrives store the prevoius response into set
-        #if defined(USE_CPP_REDIS)
-        auto & replies = parts[1].as_array();
-        #elif defined(USE_HIREDIS)
         auto const replies(parts[1].asArray());
-        #endif
         for (auto & r : replies)
-            keys.emplace(
-                        #if defined(USE_CPP_REDIS)
-                        r.as_string()
-                        #elif defined(USE_HIREDIS)
-                        r.asString()
-                        #endif
-                        );
+            keys.emplace(r.asString());
     } while (cursor);
 
     // collect keys from the set into an ordered vector, while at the same time
@@ -416,15 +339,11 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     std::vector<std::string> toDelete;
     if (sharemind::intersection(orderedKeys, toDelete, c)) {
         if (!toDelete.empty()) {
-            #if defined(USE_CPP_REDIS)
-            client.del(toDelete).commit();
-            #elif defined(USE_HIREDIS)
             std::ostringstream oss;
             oss << "DEL";
             for (auto const & key : toDelete)
                 oss << ' ' << key;
             client.command(oss.str().c_str());
-            #endif
         }
         if (cleanUpOrderedKeys) {
             for (auto & k : toDelete) {
@@ -462,17 +381,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         }
         auto & hc = it->second;
 
-        #if defined(USE_CPP_REDIS)
-        auto * client = new cpp_redis::redis_client();
-        auto deleter =
-                [] (void * const p) noexcept
-                { delete static_cast<cpp_redis::redis_client *>(p); };
-        #elif defined(USE_HIREDIS)
         auto * client = new SynchronousRedisClient;
         auto deleter =
                 [](void * const p) noexcept
                 { delete static_cast<SynchronousRedisClient *>(p); };
-        #endif
 
         store->set(store, "Client", client, deleter);
         store->set(store, "HostConfiguration", &hc, nullptr);
@@ -483,13 +395,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
         (void)args;
 
-        #if defined(USE_CPP_REDIS)
-        auto & client = getClient(c);
-        client.sync_commit();
-        client.disconnect();
-        #elif defined(USE_HIREDIS)
         getClient(c).disconnect();
-        #endif
 
         auto * factory = getDataStoreFactory(c);
         for (auto ns : dataStores) {
@@ -515,20 +421,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
 
         mod.logger.debug() << "Set with key \"" << key << "\" size = "
                            << value.size();
-        #if defined(USE_CPP_REDIS)
-        std::vector<std::string> command;
-        command.reserve(4);
-        command.emplace_back("SET");
-        command.emplace_back(key);
-        command.emplace_back(value);
-        if (getHostConf(c).disableOverwrite)
-            command.emplace_back("NX");
-        auto cb = [&mod] (cpp_redis::reply & r) {
-            if (r.is_error())
-                mod.logger.error() << r.as_string();
-        };
-        getClient(c).send(command, cb).commit();
-        #elif defined(USE_HIREDIS)
+
         auto const reply(getClient(c).command(
                              getHostConf(c).disableOverwrite
                              ? "SET %b %b NX"
@@ -540,7 +433,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
                              ));
         if (reply.isError())
             mod.logger.error() << reply.errorString();
-        #endif
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
@@ -553,15 +445,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        #if defined(USE_CPP_REDIS)
-        auto reply = requestAndWait(getClient(c),
-                                    &cpp_redis::redis_client::get,
-                                    key);
-        const std::string & data = reply.as_string();
-        #elif defined(USE_HIREDIS)
         auto reply(getClient(c).command("GET %s", key.c_str()));
         const std::string & data = reply.asString();
-        #endif
 
         // store returned data in heap
         std::string *heapString = new std::string(data);
@@ -612,15 +497,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         if (crefs[0].size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        #if defined(USE_CPP_REDIS)
-        std::string const key(static_cast<char const * const>(crefs[0].pData),
-                              crefs[0].size - 1);
-        getClient(c).del({key}).commit();
-        #elif defined(USE_HIREDIS)
         getClient(c).command("DEL %b",
                              static_cast<char const * const>(crefs[0].pData),
                              crefs[0].size - 1);
-        #endif
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
