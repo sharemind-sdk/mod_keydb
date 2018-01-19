@@ -38,7 +38,7 @@
 #include "ModuleData.h"
 
 
-#define SHAREMIND_DEFINE_SYSCALL(name,nargs,rv,nrefs,ncrefs,code) \
+#define SHAREMIND_DEFINE_SYSCALL(name,nargs,rv,nrefs,ncrefs,...) \
     SHAREMIND_EXTERN_C_BEGIN \
     SHAREMIND_MODULE_API_0x1_SYSCALL(name, args, num_args, refs, crefs, \
                                      returnValue, c) \
@@ -48,7 +48,7 @@
         assert(c->moduleHandle); \
         auto & mod = *static_cast<sharemind::ModuleData * const>(c->moduleHandle); \
         try { \
-            code \
+            __VA_ARGS__ \
             return SHAREMIND_MODULE_API_0x1_OK; \
         } catch (std::exception & exception) { \
             mod.logger.error() << exception.what(); \
