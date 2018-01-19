@@ -135,23 +135,6 @@ public: /* Types: */
 
     };
 
-    class RedisError final: public Exception {
-
-    public: /* Methods: */
-
-        RedisError(std::string const & error)
-            : m_errorString(std::string("Redis error: ") + error)
-        {}
-
-        char const * what() const noexcept final override
-        { return m_errorString.c_str(); }
-
-    private: /* Fields: */
-
-        std::string const m_errorString;
-
-    };
-
     class ConversionError final: public Exception {
 
     public: /* Methods: */
