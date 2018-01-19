@@ -186,12 +186,6 @@ public: /* Types: */
         bool isError() const noexcept
         { return m_reply && (m_reply->type == REDIS_REPLY_ERROR); }
 
-        void throwIfError() const {
-            assert(m_reply);
-            if (m_reply->type != REDIS_REPLY_ERROR)
-                throw RedisError(getString());
-        }
-
         std::string asString() const {
             assert(m_reply);
             if (m_reply->type != REDIS_REPLY_STRING)
