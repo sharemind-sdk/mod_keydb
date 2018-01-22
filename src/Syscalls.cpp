@@ -63,6 +63,14 @@
 
 namespace {
 
+template <typename T>
+T * getFacility(SharemindModuleApi0x1SyscallContext & c,
+                char const * const facilityName) noexcept
+{
+    auto * const f = c.processFacility(&c, facilityName);
+    return f ? static_cast<T *>(f) : nullptr;
+}
+
 // names used for specific datastore namespaces
 constexpr std::array<const char *, 3> dataStores{{"keydb", "keydb_get", "keydb_scan"}};
 enum DataStoreNamespace {
@@ -89,8 +97,7 @@ inline void returnString(SharemindModuleApi0x1SyscallContext * c,
 
 inline SharemindDataStoreFactory * getDataStoreFactory(SharemindModuleApi0x1SyscallContext * c) {
     auto * const factory =
-        static_cast<SharemindDataStoreFactory * const>(
-                c->processFacility(c, "DataStoreFactory"));
+            getFacility<SharemindDataStoreFactory>(*c, "DataStoreFactory");
     if (!factory)
         throw std::logic_error(
                 "DataStoreFactory is missing!");
