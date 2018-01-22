@@ -95,18 +95,21 @@ inline void returnString(SharemindModuleApi0x1SyscallContext * c,
     returnValue->uint64[0] = mem_hndl;
 }
 
-inline SharemindDataStoreFactory * getDataStoreFactory(SharemindModuleApi0x1SyscallContext * c) {
-    auto * const factory =
-            getFacility<SharemindDataStoreFactory>(*c, "DataStoreFactory");
-    if (!factory)
-        throw std::logic_error(
-                "DataStoreFactory is missing!");
-    return factory;
+inline SharemindDataStoreFactory & getDataStoreFactory(
+        SharemindModuleApi0x1SyscallContext * c)
+{
+    if (auto * const factory =
+                getFacility<SharemindDataStoreFactory>(*c, "DataStoreFactory"))
+        return *factory;
+    throw std::logic_error("DataStoreFactory is missing!");
 }
 
-inline SharemindDataStore * getDataStore(SharemindModuleApi0x1SyscallContext * c, DataStoreNamespace ns) {
-    auto * factory = getDataStoreFactory(c);
-    return factory->get_datastore(factory, dataStores[ns]);
+inline SharemindDataStore * getDataStore(
+        SharemindModuleApi0x1SyscallContext * c,
+        DataStoreNamespace ns)
+{
+    auto & factory = getDataStoreFactory(c);
+    return factory.get_datastore(&factory, dataStores[ns]);
 }
 
 template <typename T>
@@ -381,9 +384,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
 
         getClient(c).disconnect();
 
-        auto * factory = getDataStoreFactory(c);
+        auto & factory = getDataStoreFactory(c);
         for (auto ns : dataStores) {
-            auto * store = factory->get_datastore(factory, ns);
+            auto * store = factory.get_datastore(&factory, ns);
             store->clear(store);
         }
     );
