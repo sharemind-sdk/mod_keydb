@@ -491,48 +491,53 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         (void) args;
-        uint64_t * cl_cursor = static_cast<uint64_t *>(refs[0].pData);
-        assert(cl_cursor);
+        assert(refs[0u].pData);
+        std::uint64_t & cl_cursor =
+                *static_cast<std::uint64_t *>(refs[0u].pData);
 
         auto * store = getDataStore(c, NS_SCAN);
 
-        std::vector<std::string> * scan = nullptr;
-        std::string uid = *cl_cursor ? std::to_string(*cl_cursor) : "1";
+        std::vector<std::string> * scan;
+        std::string uid(cl_cursor ? std::to_string(cl_cursor) : "1");
 
-        if (!*cl_cursor) { // if a new cursor!
-            uint64_t id = 1;
-            while (!!store->get(store, uid.c_str())) {
+        if (!cl_cursor) { // if a new cursor!
+            if (crefs[0].size < 1u)
+                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
+            std::uint64_t id = 1u;
+            while (store->get(store, uid.c_str())) {
                 ++id;
                 uid = std::to_string(id);
             }
 
-            if (crefs[0].size < 1)
-                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-            const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
+            std::string const pattern(
+                        static_cast<char const * const>(crefs[0u].pData),
+                        crefs[0u].size - 1u);
             scan = new std::vector<std::string>();
-            auto deleter = [] (void * p) { delete static_cast<std::vector<std::string> *>(p); };
+            auto deleter =
+                    [](void * const p) noexcept
+                    { delete static_cast<std::vector<std::string> *>(p); };
             store->set(store, uid.c_str(), scan, deleter);
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
-            *cl_cursor = id;
+            cl_cursor = id;
 
-            // run consensus because scan on redis does not guarantee order of keys
+            /* Run consensus because scan on redis does not guarantee order of
+               keys: */
             scanAndClean(c, pattern, *scan, true);
         } else { // existing cursor
-            scan = static_cast<std::vector<std::string> *>(store->get(store, uid.c_str()));
+            scan = static_cast<std::vector<std::string> *>(
+                       store->get(store, uid.c_str()));
         }
 
         assert(scan);
-
         if (!scan->empty()) {
             returnString(c, returnValue, scan->back());
             scan->pop_back();
         } else {
-            *cl_cursor = 0;
-            // need to return something
+            cl_cursor = 0u;
             returnString(c, returnValue, std::string(""));
             store->remove(store, uid.c_str());
-            mod.logger.debug() << "keydb_scan: del cursor (" << uid.c_str() << ')';
+            mod.logger.debug() << "keydb_scan: del cursor (" << uid << ')';
         }
     );
 
