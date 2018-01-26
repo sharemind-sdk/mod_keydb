@@ -26,9 +26,13 @@
 #include <LogHard/Logger.h>
 #include <memory>
 #include <set>
+#include <sharemind/AccessControlProcessFacility.h>
 #include <sharemind/datastoreapi.h>
+#include <sharemind/libprocessfacility.h>
 #include <sharemind/module-apis/api_0x1.h>
+#include <sharemind/Range.h>
 #include <sharemind/SyscallsCommon.h>
+#include <sharemind/StringHashTablePredicate.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -70,6 +74,58 @@ T * getFacility(SharemindModuleApi0x1SyscallContext & c,
     auto * const f = c.processFacility(&c, facilityName);
     return f ? static_cast<T *>(f) : nullptr;
 }
+
+using namespace sharemind;
+
+auto const rulesetNameRange(asLiteralStringRange("sharemind:keydb"));
+auto const rulesetNamePredicate(
+        getOrCreateTemporaryStringHashTablePredicate(rulesetNameRange));
+auto const wildcardObjectNameRange(asLiteralStringRange("*:*:*"));
+auto const wildcardObjectNamePredicate(
+        getOrCreateTemporaryStringHashTablePredicate(wildcardObjectNameRange));
+std::string const readPermission("read");
+std::string const writePermission("write");
+std::string const scanPermission("scan");
+
+bool checkPermission(AccessControlProcessFacility const & aclFacility,
+                     std::string const & key,
+                     std::string const & perm,
+                     std::string const & prog)
+{
+    return aclFacility.check(
+                rulesetNamePredicate,
+                key + ':' + perm + ':' + prog,
+                key + ':' + perm + ":*",
+                key + ":*:" + prog,
+                key + ":*:*",
+                std::string("*:") + perm + ':' + prog,
+                std::string("*:") + perm + ":*",
+                std::string("*:*:") + prog,
+                wildcardObjectNamePredicate
+            ) == AccessResult::Allowed;
+}
+
+#define SHAREMIND_CHECK_PERMISSION(moduleContext, key, permission) \
+    do { \
+        auto const * const processFacility = \
+                getFacility<SharemindProcessFacility>(*c, "ProcessFacility"); \
+        if (!processFacility) \
+            return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
+        std::string const programName( \
+                processFacility->programName(processFacility)); \
+        auto const * const aclFacility = \
+                getFacility<AccessControlProcessFacility>( \
+                                *c, \
+                                "AccessControlProcessFacility"); \
+        if (!aclFacility) \
+            return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
+        if (!checkPermission(*aclFacility, \
+                             key, \
+                             permission ## Permission, \
+                             programName)) \
+            return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
+    } while(false)
+
 
 // names used for specific datastore namespaces
 constexpr std::array<const char *, 3> dataStores{{"keydb", "keydb_get", "keydb_scan"}};
@@ -403,6 +459,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+
+        SHAREMIND_CHECK_PERMISSION(c, key, write);
+
         // arrays need size -1, scalars do not need it
         const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - isArray);
 
@@ -429,6 +488,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+        SHAREMIND_CHECK_PERMISSION(c, key, read);
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
@@ -462,6 +522,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         auto * store = getDataStore(c, NS_GET);
 
         std::string name = std::to_string(args[0].uint64[0]);
+        SHAREMIND_CHECK_PERMISSION(c, name, read);
         auto * data = static_cast<std::string *>(store->get(store, name.c_str()));
         if (!data)
             throw std::logic_error(
@@ -484,9 +545,10 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         if (crefs[0].size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        getClient(c).command("DEL %b",
-                             static_cast<char const * const>(crefs[0].pData),
-                             crefs[0].size - 1);
+        std::string const key(static_cast<char const * const>(crefs[0].pData),
+                              crefs[0].size - 1);
+        SHAREMIND_CHECK_PERMISSION(c, key, write);
+        getClient(c).command("DEL %b", key.c_str(), key.size());
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
@@ -504,15 +566,16 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             if (crefs[0].size < 1u)
                 return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
+            std::string const pattern(
+                        static_cast<char const * const>(crefs[0u].pData),
+                        crefs[0u].size - 1u);
+            SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
+
             std::uint64_t id = 1u;
             while (store->get(store, uid.c_str())) {
                 ++id;
                 uid = std::to_string(id);
             }
-
-            std::string const pattern(
-                        static_cast<char const * const>(crefs[0u].pData),
-                        crefs[0u].size - 1u);
             scan = new std::vector<std::string>();
             auto deleter =
                     [](void * const p) noexcept
