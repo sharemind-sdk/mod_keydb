@@ -33,6 +33,7 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
 FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(hiredis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
+FIND_PACKAGE(SharemindLibAccessControlProcessFacility REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
@@ -56,6 +57,7 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${Boost_INCLUDE_DIRS}
         ${HIREDIS_INCLUDE_DIRS}
         ${LogHard_INCLUDE_DIRS}
+        ${SharemindLibAccessControlProcessFacility_INCLUDE_DIRS}
         ${SharemindLibConsensusService_INCLUDE_DIRS}
         ${SharemindLibDataStoreManager_INCLUDE_DIRS}
         ${SharemindLibProcessFacility_INCLUDE_DIRS}
@@ -63,6 +65,7 @@ SharemindAddSharedLibrary("sharemind_mod_keydb"
         ${SharemindPdkHeaders_INCLUDE_DIRS}
     LEGACY_DEFINITIONS
         ${LogHard_DEFINITIONS}
+        ${SharemindLibAccessControlProcessFacility_DEFINITIONS}
         ${SharemindLibConsensusService_DEFINITIONS}
         ${SharemindLibDataStoreManager_DEFINITIONS}
         ${SharemindLibProcessFacility_DEFINITIONS}
