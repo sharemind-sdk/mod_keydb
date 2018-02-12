@@ -77,33 +77,15 @@ T * getFacility(SharemindModuleApi0x1SyscallContext & c,
 
 using namespace sharemind;
 
-auto const rulesetNameRange(asLiteralStringRange("sharemind:keydb"));
-auto const rulesetNamePredicate(
-        getOrCreateTemporaryStringHashTablePredicate(rulesetNameRange));
-auto const wildcardObjectNameRange(asLiteralStringRange("*:*:*"));
-auto const wildcardObjectNamePredicate(
-        getOrCreateTemporaryStringHashTablePredicate(wildcardObjectNameRange));
-std::string const readPermission("read");
-std::string const writePermission("write");
-std::string const scanPermission("scan");
-
-bool checkPermission(AccessControlProcessFacility const & aclFacility,
-                     std::string const & key,
-                     std::string const & perm,
-                     std::string const & prog)
-{
-    return aclFacility.check(
-                rulesetNamePredicate,
-                key + ':' + perm + ':' + prog,
-                key + ':' + perm + ":*",
-                key + ":*:" + prog,
-                key + ":*:*",
-                std::string("*:") + perm + ':' + prog,
-                std::string("*:") + perm + ":*",
-                std::string("*:*:") + prog,
-                wildcardObjectNamePredicate
-            ) == AccessResult::Allowed;
-}
+#define DEFINE_STATIC_PREDICATE(name, string) \
+    auto const name ## Range(asLiteralStringRange(string)); \
+    auto const name ## Predicate( \
+            getOrCreateTemporaryStringHashTablePredicate(name ## Range));
+DEFINE_STATIC_PREDICATE(rulesetName,  "sharemind:keydb")
+DEFINE_STATIC_PREDICATE(readWildcard,  "*:read:*")
+DEFINE_STATIC_PREDICATE(writeWildcard, "*:write:*")
+DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
+#undef DEFINE_STATIC_PREDICATE
 
 #define SHAREMIND_CHECK_PERMISSION(moduleContext, key, permission) \
     do { \
@@ -119,10 +101,13 @@ bool checkPermission(AccessControlProcessFacility const & aclFacility,
                                 "AccessControlProcessFacility"); \
         if (!aclFacility) \
             return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
-        if (!checkPermission(*aclFacility, \
-                             key, \
-                             permission ## Permission, \
-                             programName)) \
+        if (aclFacility->check( \
+                    rulesetNamePredicate, \
+                    key + ":" #permission ":" + programName, \
+                    key + ":" #permission ":*", \
+                    "*:" #permission ":" + programName, \
+                    permission ## WildcardPredicate \
+                ) != AccessResult::Allowed) \
             return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
     } while(false)
 
