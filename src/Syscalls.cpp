@@ -129,7 +129,7 @@ inline void returnString(SharemindModuleApi0x1SyscallContext * c,
         SharemindCodeBlock * returnValue,
         const std::string & data)
 {
-    const uint64_t mem_hndl = c->publicAlloc(c, data.size() + 1);
+    auto const mem_hndl = c->publicAlloc(c, data.size() + 1u);
     if (mem_hndl) {
         char * const ptr = static_cast<char * const>(c->publicMemPtrData(c, mem_hndl));
         memcpy(ptr, data.c_str(), data.size());
@@ -333,7 +333,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     auto & hostconf = getHostConf(c);
 
     std::set<std::string> keys;
-    uint64_t cursor = 0;
+    std::uint64_t cursor = 0;
     std::string str_cursor = "0";
 
     // make the first request
@@ -489,7 +489,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
 
         auto * store = getDataStore(c, NS_GET); // May throw
 
-        uint64_t id = 0;
+        std::uint64_t id = 0;
         char idString[21]; // 2^64 == 18 446 744 073 709 551 616
         do {
             std::sprintf(idString, "%" PRIu64, id);
