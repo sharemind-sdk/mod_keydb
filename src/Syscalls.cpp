@@ -29,6 +29,7 @@
 #include <sharemind/AccessControlProcessFacility.h>
 #include <sharemind/datastoreapi.h>
 #include <sharemind/libprocessfacility.h>
+#include <sharemind/MakeUnique.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/Range.h>
 #include <sharemind/SyscallsCommon.h>
@@ -472,33 +473,33 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         if (crefs->size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+        std::string const key(static_cast<char const * const>(crefs[0].pData),
+                              crefs[0].size - 1);
         SHAREMIND_CHECK_PERMISSION(c, key, read);
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
-        auto reply(getClient(c).command("GET %s", key.c_str()));
-        const std::string & data = reply.asString();
-
         // store returned data in heap
-        std::string *heapString = new std::string(data);
+        auto heapString(sharemind::makeUnique<std::string>(
+                            getClient(c).command("GET %s",
+                                                 key.c_str()).asString()));
+        returnValue->uint64[0] = heapString->size();
 
-        auto * store = getDataStore(c, NS_GET);
+        auto * store = getDataStore(c, NS_GET); // May throw
 
         uint64_t id = 0;
         std::string id_str;
         do {
-            id_str = std::to_string(id);
+            id_str = std::to_string(id); // May throw
             ++id;
         } while (!!store->get(store, id_str.c_str()));
 
-        auto deleter = [](void * p) { delete static_cast<std::string *>(p); };
-        store->set(store, id_str.c_str(), heapString, deleter);
+        static auto const deleter =
+                [](void * const p) noexcept
+                { delete static_cast<std::string *>(p); };
+        store->set(store, id_str.c_str(), heapString.release(), +deleter);
 
         args[0].uint64[0] = id - 1;
-
-        // return size of data
-        returnValue->uint64[0] = data.size();
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
