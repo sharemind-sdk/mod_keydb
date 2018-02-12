@@ -501,6 +501,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
                 { delete static_cast<std::string *>(p); };
         store->set(store, idString, heapString.release(), +deleter);
 
+        /// \bug This does not pass/return a value to the caller:
         args[0].uint64[0] = id - 1;
     );
 
