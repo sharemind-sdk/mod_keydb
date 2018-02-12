@@ -19,6 +19,8 @@
 
 
 #include <algorithm>
+#include <cstdio>
+#include <cinttypes>
 #include <exception>
 #include <future>
 #include <hiredis/hiredis.h>
@@ -507,9 +509,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
 
         auto * store = getDataStore(c, NS_GET);
 
-        std::string name = std::to_string(args[0].uint64[0]);
-        SHAREMIND_CHECK_PERMISSION(c, name, read);
-        auto * data = static_cast<std::string *>(store->get(store, name.c_str()));
+        char id[21]; // 2^64 == 18 446 744 073 709 551 616
+        std::sprintf(id, "%" PRIu64, args[0].uint64[0]);
+        auto const * data = static_cast<std::string *>(store->get(store, id));
         if (!data)
             throw std::logic_error(
                     "Cannot get instance of data, was keydb_get_size called before?");
@@ -522,7 +524,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         memcpy(refs[0].pData, data->data(), data->size());
 
         // free data from heap
-        store->remove(store, name.c_str());
+        store->remove(store, id);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
