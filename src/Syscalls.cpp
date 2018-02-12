@@ -559,7 +559,13 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         auto * store = getDataStore(c, NS_SCAN);
 
         std::vector<std::string> * scan;
-        std::string uid(cl_cursor ? std::to_string(cl_cursor) : "1");
+        char uid[21]; // 2^64 == 18 446 744 073 709 551 616
+        if (cl_cursor) {
+            std::sprintf(uid, "%" PRIu64, cl_cursor);
+        } else {
+            uid[0u] = '1';
+            uid[1u] = '\0';
+        }
 
         if (!cl_cursor) { // if a new cursor!
             if (crefs[0].size < 1u)
@@ -571,15 +577,15 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
 
             ClCursor id = 1u;
-            while (store->get(store, uid.c_str())) {
+            while (store->get(store, uid)) {
                 ++id;
-                uid = std::to_string(id);
+                std::sprintf(uid, "%" PRIu64, id);
             }
             scan = new std::vector<std::string>();
             auto deleter =
                     [](void * const p) noexcept
                     { delete static_cast<std::vector<std::string> *>(p); };
-            store->set(store, uid.c_str(), scan, deleter);
+            store->set(store, uid, scan, deleter);
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
             std::memcpy(refs[0].pData, &id, sizeof(id));
 
@@ -588,7 +594,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             scanAndClean(c, pattern, *scan, true);
         } else { // existing cursor
             scan = static_cast<std::vector<std::string> *>(
-                       store->get(store, uid.c_str()));
+                       store->get(store, uid));
         }
 
         assert(scan);
@@ -599,7 +605,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             static ClCursor const zeroId = 0u;
             std::memcpy(refs[0].pData, &zeroId, sizeof(zeroId));
             returnString(c, returnValue, std::string(""));
-            store->remove(store, uid.c_str());
+            store->remove(store, uid);
             mod.logger.debug() << "keydb_scan: del cursor (" << uid << ')';
         }
     );
