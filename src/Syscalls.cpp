@@ -490,16 +490,16 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         auto * store = getDataStore(c, NS_GET); // May throw
 
         uint64_t id = 0;
-        std::string id_str;
+        char idString[21]; // 2^64 == 18 446 744 073 709 551 616
         do {
-            id_str = std::to_string(id); // May throw
+            std::sprintf(idString, "%" PRIu64, id);
             ++id;
-        } while (!!store->get(store, id_str.c_str()));
+        } while (!!store->get(store, idString));
 
         static auto const deleter =
                 [](void * const p) noexcept
                 { delete static_cast<std::string *>(p); };
-        store->set(store, id_str.c_str(), heapString.release(), +deleter);
+        store->set(store, idString, heapString.release(), +deleter);
 
         args[0].uint64[0] = id - 1;
     );
