@@ -581,11 +581,16 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
                 ++id;
                 std::sprintf(uid, "%" PRIu64, id);
             }
-            scan = new std::vector<std::string>();
-            auto deleter =
+            auto newScan(sharemind::makeUnique<std::vector<std::string> >());
+            static auto const deleter =
                     [](void * const p) noexcept
                     { delete static_cast<std::vector<std::string> *>(p); };
-            store->set(store, uid, scan, deleter);
+            if (!store->set(store, uid, newScan.get(), +deleter)) {
+                newScan.release();
+                /// \todo maybe should return something else? C interfaces... ;(
+                return SHAREMIND_MODULE_API_0x1_OUT_OF_MEMORY;
+            }
+            scan = newScan.release();
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
             std::memcpy(refs[0].pData, &id, sizeof(id));
 
