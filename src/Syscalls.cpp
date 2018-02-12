@@ -126,20 +126,6 @@ enum DataStoreNamespace {
 };
 static_assert(dataStores.size() == NS_MAX + 1, "DataStoreNamespace enum and dataStores array must be in sync!");
 
-inline void returnString(SharemindModuleApi0x1SyscallContext * c,
-        SharemindCodeBlock * returnValue,
-        const std::string & data)
-{
-    auto const mem_hndl = c->publicAlloc(c, data.size() + 1u);
-    if (mem_hndl) {
-        char * const ptr = static_cast<char * const>(c->publicMemPtrData(c, mem_hndl));
-        memcpy(ptr, data.c_str(), data.size());
-        // add the zero byte at the end
-        *(ptr + data.size()) = '\0';
-    }
-    returnValue->uint64[0] = mem_hndl;
-}
-
 inline SharemindDataStoreFactory & getDataStoreFactory(
         SharemindModuleApi0x1SyscallContext * c)
 {
@@ -602,14 +588,28 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
                        store->get(store, uid));
         }
 
+        /** \bug If the public allocations below fail, we essentially just skip
+                 that element. This system call needs a better interface. */
         assert(scan);
         if (!scan->empty()) {
-            returnString(c, returnValue, scan->back());
+            auto const & data = scan->back();
+            auto const mem_hndl = c->publicAlloc(c, data.size() + 1u);
+            if (mem_hndl) {
+                char * const ptr =
+                        static_cast<char *>(c->publicMemPtrData(c, mem_hndl));
+                std::memcpy(ptr, data.c_str(), data.size());
+                // add the zero byte at the end
+                *(ptr + data.size()) = '\0';
+            }
+            returnValue->uint64[0] = mem_hndl;
             scan->pop_back();
         } else {
             static ClCursor const zeroId = 0u;
             std::memcpy(refs[0].pData, &zeroId, sizeof(zeroId));
-            returnString(c, returnValue, std::string(""));
+            auto const mem_hndl = c->publicAlloc(c, 1u);
+            if (mem_hndl)
+                (*static_cast<char *>(c->publicMemPtrData(c, mem_hndl))) = '\0';
+            returnValue->uint64[0] = mem_hndl;
             store->remove(store, uid);
             mod.logger.debug() << "keydb_scan: del cursor (" << uid << ')';
         }
