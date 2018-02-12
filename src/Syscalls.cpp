@@ -19,8 +19,9 @@
 
 
 #include <algorithm>
-#include <cstdio>
 #include <cinttypes>
+#include <cstdio>
+#include <cstring>
 #include <exception>
 #include <future>
 #include <hiredis/hiredis.h>
@@ -542,9 +543,18 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         (void) args;
+        /** \todo It were easier and faster to take an uint64 argument and
+                  return an uint64 instead of messing with references. */
+        using ClCursor = std::uint64_t;
         assert(refs[0u].pData);
-        std::uint64_t & cl_cursor =
-                *static_cast<std::uint64_t *>(refs[0u].pData);
+        if (refs[0u].size != sizeof(ClCursor))
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        ClCursor const cl_cursor =
+                [refs]() noexcept {
+                    ClCursor r;
+                    std::memcpy(&r, refs[0].pData, sizeof(r));
+                    return r;
+                }();
 
         auto * store = getDataStore(c, NS_SCAN);
 
@@ -560,7 +570,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
                         crefs[0u].size - 1u);
             SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
 
-            std::uint64_t id = 1u;
+            ClCursor id = 1u;
             while (store->get(store, uid.c_str())) {
                 ++id;
                 uid = std::to_string(id);
@@ -571,7 +581,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
                     { delete static_cast<std::vector<std::string> *>(p); };
             store->set(store, uid.c_str(), scan, deleter);
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
-            cl_cursor = id;
+            std::memcpy(refs[0].pData, &id, sizeof(id));
 
             /* Run consensus because scan on redis does not guarantee order of
                keys: */
@@ -586,7 +596,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             returnString(c, returnValue, scan->back());
             scan->pop_back();
         } else {
-            cl_cursor = 0u;
+            static ClCursor const zeroId = 0u;
+            std::memcpy(refs[0].pData, &zeroId, sizeof(zeroId));
             returnString(c, returnValue, std::string(""));
             store->remove(store, uid.c_str());
             mod.logger.debug() << "keydb_scan: del cursor (" << uid << ')';
