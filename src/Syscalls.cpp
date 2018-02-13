@@ -312,7 +312,7 @@ inline sharemind::ModuleData::HostConfiguration & getHostConf(SharemindModuleApi
 }
 
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
-                  const std::string & pattern,
+                  char const * const pattern,
                   std::vector<std::string> & orderedKeys,
                   bool cleanUpOrderedKeys = false)
 {
@@ -327,7 +327,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         // make the first request
         auto reply(client.command("SCAN %s MATCH %s COUNT %s",
                                   str_cursor.c_str(),
-                                  pattern.c_str(),
+                                  pattern,
                                   hostconf.scanCount.c_str()));
         do {
             // get the response
@@ -341,7 +341,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                 // make the next request
                 reply = client.command("SCAN %s MATCH %s COUNT %s",
                                        str_cursor.c_str(),
-                                       pattern.c_str(),
+                                       pattern,
                                        hostconf.scanCount.c_str());
             }
             // while the next response arrives store the prevoius response into set
@@ -583,7 +583,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
 
             /* Run consensus because scan on redis does not guarantee order of
                keys: */
-            scanAndClean(c, pattern, *scan, true);
+            scanAndClean(c, pattern.c_str(), *scan, true);
         } else { // existing cursor
             scan = static_cast<std::vector<std::string> *>(
                        store->get(store, uid));
@@ -626,6 +626,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
         const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
 
         std::vector<std::string> orderedKeys;
-        bool b = scanAndClean(c, pattern, orderedKeys);
+        bool b = scanAndClean(c, pattern.c_str(), orderedKeys);
         returnValue->uint64[0] = b ? 1 : 0;
     );
