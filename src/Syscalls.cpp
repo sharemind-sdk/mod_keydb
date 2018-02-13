@@ -349,11 +349,11 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
             keys.emplace(r.asString());
     } while (cursor);
 
-    // collect keys from the set into an ordered vector, while at the same time
-    // freeing the memory from set
-    for (auto it = keys.begin(); it != keys.end(); keys.erase(it++)) {
-        orderedKeys.emplace_back(std::move(*it));
-    }
+    // Move all elements from keys to orderedKeys, clear keys:
+    for (auto & key : keys)
+        orderedKeys.emplace_back(std::move(key));
+    keys.clear();
+
     std::vector<std::string> toDelete;
     if (sharemind::intersection(orderedKeys, toDelete, c)) {
         if (!toDelete.empty()) {
