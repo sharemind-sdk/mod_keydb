@@ -467,19 +467,18 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
 SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         (void) args;
 
-        if (crefs->size < 1)
+        if (crefs[0u].size < 1u)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-        std::string const key(static_cast<char const * const>(crefs[0].pData),
-                              crefs[0].size - 1);
+        auto const key = static_cast<char const *>(crefs[0].pData);
+        if (key[crefs[0u].size - 1u] != '\0')
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         SHAREMIND_CHECK_PERMISSION(c, key, read);
 
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
         // store returned data in heap
         auto heapString(sharemind::makeUnique<std::string>(
-                            getClient(c).command("GET %s",
-                                                 key.c_str()).asString()));
+                            getClient(c).command("GET %s", key).asString()));
         returnValue->uint64[0] = heapString->size();
 
         auto * store = getDataStore(c, NS_GET); // May throw
