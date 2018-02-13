@@ -20,6 +20,7 @@
 #ifndef SHAREMIND_MOD_KEYDB_MODULEDATA_H
 #define SHAREMIND_MOD_KEYDB_MODULEDATA_H
 
+#include <cstdint>
 #include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
 #include <string>
