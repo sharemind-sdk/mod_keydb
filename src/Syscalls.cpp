@@ -428,35 +428,38 @@ SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
-        if (args[0].uint64[0] > 1)
+        if (args[0u].uint64[0u] > 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-        if (crefs->size < 1)
+        if (crefs[0u].size < 1u)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-        bool isArray = args[0].uint64[0];
-
-        if (isArray && crefs[1].size < 1)
+        auto const key = static_cast<char const *>(crefs[0u].pData);
+        if (key[crefs[0u].size - 1u] != '\0')
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        auto const keySize = std::strlen(key);
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
+        auto const value = static_cast<char const *>(crefs[1u].pData);
+        bool const valueIsArray = args[0u].uint64[0u];
+
+        // arrays need size -1, scalars do not need it:
+        if (valueIsArray && (crefs[1u].size < 1u
+                             || value[crefs[1u].size - 1u] != '\0'))
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        auto const valueSize =
+                valueIsArray ? crefs[1u].size - 1u : crefs[1u].size;
 
         SHAREMIND_CHECK_PERMISSION(c, key, write);
 
-        // arrays need size -1, scalars do not need it
-        const std::string value(static_cast<char const * const>(crefs[1].pData), crefs[1].size - isArray);
-
         mod.logger.debug() << "Set with key \"" << key << "\" size = "
-                           << value.size();
+                           << valueSize;
 
         auto const reply(getClient(c).command(
                              getHostConf(c).disableOverwrite
                              ? "SET %b %b NX"
                              : "SET %b %b",
-                             static_cast<char const * const>(crefs[0].pData),
-                             crefs[0].size - 1,
-                             static_cast<char const * const>(crefs[1].pData),
-                             crefs[1].size - isArray
-                             ));
+                             key,
+                             keySize,
+                             value,
+                             valueSize));
         if (reply.isError())
             mod.logger.error() << reply.errorString();
     );
