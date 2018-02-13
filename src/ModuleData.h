@@ -23,8 +23,8 @@
 #include <cstdint>
 #include <LogHard/Logger.h>
 #include <sharemind/libconsensusservice.h>
+#include <sharemind/SimpleUnorderedStringMap.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace sharemind {
@@ -56,7 +56,7 @@ public: /* Types: */
 
     const LogHard::Logger logger;
     SharemindConsensusFacility *consensusFacility;
-    std::unordered_map<std::string, HostConfiguration> hostMap;
+    SimpleUnorderedStringMap<HostConfiguration> hostMap;
 };
 
 } /* namespace sharemind { */
