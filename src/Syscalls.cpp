@@ -317,42 +317,43 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   bool cleanUpOrderedKeys = false)
 {
     auto & client = getClient(c);
-    auto & hostconf = getHostConf(c);
 
-    std::set<std::string> keys;
-    std::uint64_t cursor = 0;
-    std::string str_cursor = "0";
+    {
+        auto & hostconf = getHostConf(c);
+        std::set<std::string> keys;
+        std::uint64_t cursor = 0;
+        std::string str_cursor = "0";
 
-    // make the first request
-    auto reply(client.command("SCAN %s MATCH %s COUNT %s",
-                              str_cursor.c_str(),
-                              pattern.c_str(),
-                              hostconf.scanCount.c_str()));
-    do {
-        // get the response
-        auto const parts(reply.asArray());
-        str_cursor = parts[0].asString();
+        // make the first request
+        auto reply(client.command("SCAN %s MATCH %s COUNT %s",
+                                  str_cursor.c_str(),
+                                  pattern.c_str(),
+                                  hostconf.scanCount.c_str()));
+        do {
+            // get the response
+            auto const parts(reply.asArray());
+            str_cursor = parts[0].asString();
 
-        std::istringstream iss(str_cursor);
-        iss >> cursor;
+            std::istringstream iss(str_cursor);
+            iss >> cursor;
 
-        if (cursor) {
-            // make the next request
-            reply = client.command("SCAN %s MATCH %s COUNT %s",
-                                   str_cursor.c_str(),
-                                   pattern.c_str(),
-                                   hostconf.scanCount.c_str());
-        }
-        // while the next response arrives store the prevoius response into set
-        auto const replies(parts[1].asArray());
-        for (auto & r : replies)
-            keys.emplace(r.asString());
-    } while (cursor);
+            if (cursor) {
+                // make the next request
+                reply = client.command("SCAN %s MATCH %s COUNT %s",
+                                       str_cursor.c_str(),
+                                       pattern.c_str(),
+                                       hostconf.scanCount.c_str());
+            }
+            // while the next response arrives store the prevoius response into set
+            auto const replies(parts[1].asArray());
+            for (auto & r : replies)
+                keys.emplace(r.asString());
+        } while (cursor);
 
-    // Move all elements from keys to orderedKeys, clear keys:
-    for (auto & key : keys)
-        orderedKeys.emplace_back(std::move(key));
-    keys.clear();
+        // Move all elements from keys to orderedKeys:
+        for (auto & key : keys)
+            orderedKeys.emplace_back(std::move(key));
+    }
 
     std::vector<std::string> toDelete;
     if (sharemind::intersection(orderedKeys, toDelete, c)) {
