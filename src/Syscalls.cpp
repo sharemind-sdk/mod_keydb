@@ -383,35 +383,36 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
 
         if (crefs[0].size < 1u)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-        auto const key = static_cast<char const *>(crefs[0].pData);
+        auto const key = static_cast<char const *>(crefs[0u].pData);
         if (key[crefs[0].size - 1u] != '\0')
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         auto * store = getDataStore(c, NS_KEYDB);
 
         if (store->get(store, "Client")) {
-            mod.logger.error() << "You have already called keydb_connect!\n"
-                               << "First call keydb_disconnect to drop the old connection.";
+            mod.logger.error() << "You have already called keydb_connect! "
+                                  "First call keydb_disconnect to drop the old "
+                                  "connection.";
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         }
 
-        auto it = mod.hostMap.find(key);
+        auto const it(mod.hostMap.find(key));
         if (it == mod.hostMap.end()) {
             mod.logger.error() << "Could not find the host \"" << key
                 << "\" in the module hosts configuration.";
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         }
-        auto & hc = it->second;
+        auto & hostConfiguration = it->second;
 
-        auto * client = new SynchronousRedisClient;
-        auto deleter =
+        static auto const deleter =
                 [](void * const p) noexcept
                 { delete static_cast<SynchronousRedisClient *>(p); };
 
-        store->set(store, "Client", client, deleter);
-        store->set(store, "HostConfiguration", &hc, nullptr);
+        auto * const client = new SynchronousRedisClient;
+        store->set(store, "Client", client, +deleter);
+        store->set(store, "HostConfiguration", &hostConfiguration, nullptr);
 
-        client->connect(hc.hostname, hc.port);
+        client->connect(hostConfiguration.hostname, hostConfiguration.port);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_disconnect, 0, false, 0, 0,
