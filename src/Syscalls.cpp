@@ -32,6 +32,7 @@
 #include <sharemind/AccessControlProcessFacility.h>
 #include <sharemind/datastoreapi.h>
 #include <sharemind/libprocessfacility.h>
+#include <sharemind/Concat.h>
 #include <sharemind/MakeUnique.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/Range.h>
@@ -107,9 +108,9 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
             return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
         if (aclFacility->check( \
                     rulesetNamePredicate, \
-                    key + ":" #permission ":" + programName, \
-                    key + ":" #permission ":*", \
-                    "*:" #permission ":" + programName, \
+                    sharemind::concat(key, ":" #permission ":", programName), \
+                    sharemind::concat(key, ":" #permission ":*"), \
+                    sharemind::concat("*:" #permission ":", programName), \
                     permission ## WildcardPredicate \
                 ) != AccessResult::Allowed) \
             return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
