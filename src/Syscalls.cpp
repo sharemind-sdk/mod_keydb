@@ -99,8 +99,7 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
                 getFacility<SharemindProcessFacility>(*c, "ProcessFacility"); \
         if (!processFacility) \
             return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
-        std::string const programName( \
-                processFacility->programName(processFacility)); \
+        auto const programName(processFacility->programName(processFacility)); \
         auto const * const aclFacility = \
                 getFacility<AccessControlProcessFacility>( \
                                 *c, \
