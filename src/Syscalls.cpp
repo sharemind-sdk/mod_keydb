@@ -622,10 +622,11 @@ SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
 
         if (crefs[0].size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-        const std::string pattern(static_cast<char const * const>(crefs[0].pData), crefs[0].size-1);
+        auto const pattern = static_cast<char const *>(crefs[0].pData);
+        if (pattern[crefs[0].size - 1u] != '\0')
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         std::vector<std::string> orderedKeys;
-        bool b = scanAndClean(c, pattern.c_str(), orderedKeys);
+        bool b = scanAndClean(c, pattern, orderedKeys);
         returnValue->uint64[0] = b ? 1 : 0;
     );
