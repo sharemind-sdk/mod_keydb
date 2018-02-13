@@ -516,7 +516,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
 
         assert(refs[0].size == data->size() || refs[0].size == data->size()+1);
         // copy data to secrec
-        memcpy(refs[0].pData, data->data(), data->size());
+        std::memcpy(refs[0].pData, data->data(), data->size());
 
         // free data from heap
         store->remove(store, id);
