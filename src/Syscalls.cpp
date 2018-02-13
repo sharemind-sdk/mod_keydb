@@ -548,15 +548,19 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         /** \todo It were easier and faster to take an uint64 argument and
                   return an uint64 instead of messing with references. */
         using ClCursor = std::uint64_t;
-        assert(refs[0u].pData);
+        auto * const clCursorData = refs[0u].pData;
+        assert(clCursorData);
         if (refs[0u].size != sizeof(ClCursor))
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         ClCursor const cl_cursor =
-                [refs]() noexcept {
+                [clCursorData]() noexcept {
                     ClCursor r;
-                    std::memcpy(&r, refs[0].pData, sizeof(r));
+                    std::memcpy(&r, clCursorData, sizeof(r));
                     return r;
                 }();
+        auto const setClCursor =
+                [clCursorData](ClCursor const newValue) noexcept
+                { std::memcpy(clCursorData, &newValue, sizeof(newValue)); };
 
         auto * store = getDataStore(c, NS_SCAN);
 
@@ -593,7 +597,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             }
             scan = newScan.release();
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
-            std::memcpy(refs[0].pData, &id, sizeof(id));
+            setClCursor(id);
 
             /* Run consensus because scan on redis does not guarantee order of
                keys: */
@@ -619,8 +623,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             returnValue->uint64[0] = mem_hndl;
             scan->pop_back();
         } else {
-            static ClCursor const zeroId = 0u;
-            std::memcpy(refs[0].pData, &zeroId, sizeof(zeroId));
+            setClCursor(0u);
             auto const mem_hndl = c->publicAlloc(c, 1u);
             if (mem_hndl)
                 (*static_cast<char *>(c->publicMemPtrData(c, mem_hndl))) = '\0';
