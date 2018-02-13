@@ -627,6 +627,5 @@ SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         std::vector<std::string> orderedKeys;
-        bool b = scanAndClean(c, pattern, orderedKeys);
-        returnValue->uint64[0] = b ? 1 : 0;
+        returnValue->uint64[0] = scanAndClean(c, pattern, orderedKeys) ? 1 : 0;
     );
