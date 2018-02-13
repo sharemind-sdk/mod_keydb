@@ -515,9 +515,17 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         mod.logger.debug() << "reference size, data size: "
             << refs[0].size << ", " << data->size();
 
-        assert(refs[0].size == data->size() || refs[0].size == data->size()+1);
-        // copy data to secrec
-        std::memcpy(refs[0].pData, data->data(), data->size());
+        /// \todo Write different syscalls for array and scalar
+        auto const refSize = refs[0u].size;
+        auto const dataSize = data->size();
+        if (refSize == dataSize) {
+            std::memcpy(refs[0u].pData, data->data(), dataSize);
+        } else if (refSize == dataSize + 1u) {
+            std::memcpy(refs[0u].pData, data->data(), dataSize);
+            (*(static_cast<char *>(refs[0u].pData) + dataSize)) = '\0';
+        } else {
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        }
 
         // free data from heap
         store->remove(store, id);
