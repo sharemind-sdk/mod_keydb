@@ -381,7 +381,10 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
         (void)args;
 
-        if (crefs[0].size < 1)
+        if (crefs[0].size < 1u)
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+        auto const key = static_cast<char const *>(crefs[0].pData);
+        if (key[crefs[0].size - 1u] != '\0')
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         auto * store = getDataStore(c, NS_KEYDB);
@@ -392,7 +395,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         }
 
-        const std::string key(static_cast<char const * const>(crefs[0].pData), crefs[0].size - 1);
         auto it = mod.hostMap.find(key);
         if (it == mod.hostMap.end()) {
             mod.logger.error() << "Could not find the host \"" << key
