@@ -31,8 +31,9 @@
 #include <set>
 #include <sharemind/AccessControlProcessFacility.h>
 #include <sharemind/datastoreapi.h>
-#include <sharemind/libprocessfacility.h>
+#include <sharemind/ExceptionMacros.h>
 #include <sharemind/Concat.h>
+#include <sharemind/libprocessfacility.h>
 #include <sharemind/MakeUnique.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/Range.h>
@@ -525,13 +526,13 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
 SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         (void) args;
 
-        if (crefs[0].size < 1)
+        if (crefs[0u].size < 1u)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-        std::string const key(static_cast<char const * const>(crefs[0].pData),
-                              crefs[0].size - 1);
+        auto const key = static_cast<char const *>(crefs[0].pData);
+        if (key[crefs[0u].size - 1u] != '\0')
+            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         SHAREMIND_CHECK_PERMISSION(c, key, write);
-        getClient(c).command("DEL %b", key.c_str(), key.size());
+        getClient(c).command("DEL %s", key);
     );
 
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
