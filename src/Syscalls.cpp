@@ -159,40 +159,25 @@ class SynchronousRedisClient {
 
 public: /* Types: */
 
-    class Exception: public std::exception {};
-    class HiredisError final: public Exception {
-
-    public: /* Methods: */
-
-        HiredisError(::redisContext const & context)
-            : m_errorString(std::string("Hiredis error: ") + context.errstr)
-        {}
-
-        char const * what() const noexcept final override
-        { return m_errorString.c_str(); }
-
-    private: /* Fields: */
-
-        std::string const m_errorString;
-
-    };
-
-    class ConversionError final: public Exception {
-
-    public: /* Methods: */
-
-        ConversionError(char const * const staticStr)
-            : m_errorString(staticStr)
-        {}
-
-        char const * what() const noexcept final override
-        { return m_errorString; }
-
-    private: /* Fields: */
-
-        char const * const m_errorString;
-
-    };
+    #pragma GCC diagnostic push
+    #pragma GCC diagnostic ignored "-Wunused"
+    #pragma GCC diagnostic ignored "-Wunused-function"
+    #ifdef __clang__
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wunused-member-function"
+    #endif
+    SHAREMIND_DECLARE_EXCEPTION_NOINLINE(std::exception, Exception);
+    SHAREMIND_DECLARE_EXCEPTION_CONST_STDSTRING_NOINLINE(Exception,
+                                                         HiredisException);
+    SHAREMIND_DECLARE_EXCEPTION_NOINLINE(Exception, ConversionException);
+    SHAREMIND_DECLARE_EXCEPTION_CONST_MSG_NOINLINE(ConversionException,
+                                                   ReplyNotStringException);
+    SHAREMIND_DECLARE_EXCEPTION_CONST_MSG_NOINLINE(ConversionException,
+                                                   ReplyNotArrayException);
+    #ifdef __clang__
+    #pragma clang diagnostic pop
+    #endif
+    #pragma GCC diagnostic pop
 
     class Reply {
 
@@ -214,14 +199,14 @@ public: /* Types: */
         std::string asString() const {
             assert(m_reply);
             if (m_reply->type != REDIS_REPLY_STRING)
-                throw ConversionError("Redis reply was not a string!");
+                throw ReplyNotStringException();
             return getString();
         }
 
         std::vector<Reply> asArray() const {
             assert(m_reply);
             if (m_reply->type != REDIS_REPLY_ARRAY)
-                throw ConversionError("Redis reply was not an array!");
+                throw ReplyNotArrayException();
             std::vector<Reply> r;
             auto const numElements(m_reply->elements);
             r.reserve(numElements);
@@ -233,7 +218,7 @@ public: /* Types: */
         std::string errorString() const {
             assert(m_reply);
             if (m_reply->type != REDIS_REPLY_ERROR)
-                throw ConversionError("Redis reply was not a string!");
+                throw ReplyNotStringException();
             return getString();
         }
 
@@ -284,7 +269,8 @@ public: /* Methods: */
         if (!context)
             throw std::bad_alloc();
         if (context->err)
-            throw HiredisError(*context);
+            throw HiredisException(std::string("Hiredis error: ")
+                                   + context->errstr);
         m_redisContext = std::move(context);
     }
 
@@ -295,14 +281,44 @@ public: /* Methods: */
         if (auto * reply = ::redisCommand(m_redisContext.get(),
                                           std::forward<Args>(args)...))
             return static_cast<::redisReply *>(reply);
-        throw HiredisError(*m_redisContext);
+        throw HiredisException(std::string("Hiredis error: ")
+                               + m_redisContext->errstr);
     }
 
 private: /* Fields: */
 
     ContextPtr m_redisContext;
 
-};
+}; // class SynchronousRedisClient
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-member-function"
+#endif
+SHAREMIND_DEFINE_EXCEPTION_NOINLINE(std::exception,
+                                    SynchronousRedisClient::,
+                                    Exception);
+SHAREMIND_DEFINE_EXCEPTION_CONST_STDSTRING_NOINLINE(Exception,
+                                                    SynchronousRedisClient::,
+                                                    HiredisException);
+SHAREMIND_DEFINE_EXCEPTION_NOINLINE(Exception,
+                                    SynchronousRedisClient::,
+                                    ConversionException);
+SHAREMIND_DEFINE_EXCEPTION_CONST_MSG_NOINLINE(ConversionException,
+                                              SynchronousRedisClient::,
+                                              ReplyNotStringException,
+                                              "Redis reply was not a string!");
+SHAREMIND_DEFINE_EXCEPTION_CONST_MSG_NOINLINE(ConversionException,
+                                              SynchronousRedisClient::,
+                                              ReplyNotArrayException,
+                                              "Redis reply was not an array!");
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+#pragma GCC diagnostic pop
 
 inline SynchronousRedisClient & getClient(SharemindModuleApi0x1SyscallContext * c) {
     return getItem<SynchronousRedisClient>(c, "Client");
