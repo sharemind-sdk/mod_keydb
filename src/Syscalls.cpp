@@ -31,6 +31,7 @@
 #include <set>
 #include <sharemind/AccessControlProcessFacility.h>
 #include <sharemind/datastoreapi.h>
+#include <sharemind/DebugOnly.h>
 #include <sharemind/ExceptionMacros.h>
 #include <sharemind/Concat.h>
 #include <sharemind/libprocessfacility.h>
@@ -612,11 +613,17 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
             }
             scan = newScan.release();
             mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
-            setClCursor(id);
 
             /* Run consensus because scan on redis does not guarantee order of
                keys: */
-            scanAndClean(c, pattern, *scan, true);
+            try {
+                scanAndClean(c, pattern, *scan, true);
+            } catch (...) {
+                SHAREMIND_DEBUG_ONLY(auto const r =) store->remove(store, uid);
+                assert(r);
+                throw;
+            }
+            setClCursor(id);
         } else { // existing cursor
             scan = static_cast<std::vector<std::string> *>(
                        store->get(store, uid));
