@@ -558,10 +558,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
         if (!cl_cursor) { // if a new cursor!
             if (crefs[0].size < 1u)
                 return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-
-            std::string const pattern(
-                        static_cast<char const * const>(crefs[0u].pData),
-                        crefs[0u].size - 1u);
+            auto const pattern = static_cast<char const *>(crefs[0u].pData);
+            if (pattern[crefs[0].size - 1u] != '\0')
+                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
             SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
 
             ClCursor id = 1u;
@@ -584,7 +583,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
 
             /* Run consensus because scan on redis does not guarantee order of
                keys: */
-            scanAndClean(c, pattern.c_str(), *scan, true);
+            scanAndClean(c, pattern, *scan, true);
         } else { // existing cursor
             scan = static_cast<std::vector<std::string> *>(
                        store->get(store, uid));
