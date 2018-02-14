@@ -55,20 +55,23 @@
     SHAREMIND_MODULE_API_0x1_SYSCALL(name, args, num_args, refs, crefs, \
                                      returnValue, c) \
     { \
-        if (!sharemind::SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, refs, crefs, returnValue)) \
+        if (!SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, \
+                                                       refs, \
+                                                       crefs, \
+                                                       returnValue)) \
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL; \
         assert(c->moduleHandle); \
-        auto & mod = *static_cast<sharemind::ModuleData * const>(c->moduleHandle); \
+        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle); \
         try { \
             __VA_ARGS__ \
             return SHAREMIND_MODULE_API_0x1_OK; \
         } catch (std::exception & exception) { \
             mod.logger.error() << exception.what(); \
             mod.logger.error() << "in " #name; \
-            return sharemind::catchModuleApiErrors(); \
+            return catchModuleApiErrors(); \
         } catch (...) { \
             mod.logger.error() << "Error in " #name ; \
-            return sharemind::catchModuleApiErrors(); \
+            return catchModuleApiErrors(); \
         } \
     } \
     SHAREMIND_EXTERN_C_END
@@ -110,9 +113,9 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
             return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
         if (aclFacility->check( \
                     rulesetNamePredicate, \
-                    sharemind::concat(key, ":" #permission ":", programName), \
-                    sharemind::concat(key, ":" #permission ":*"), \
-                    sharemind::concat("*:" #permission ":", programName), \
+                    concat(key, ":" #permission ":", programName), \
+                    concat(key, ":" #permission ":*"), \
+                    concat("*:" #permission ":", programName), \
                     permission ## WildcardPredicate \
                 ) != AccessResult::Allowed) \
             return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
@@ -120,14 +123,17 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
 
 
 // names used for specific datastore namespaces
-constexpr std::array<const char *, 3> dataStores{{"keydb", "keydb_get", "keydb_scan"}};
+constexpr std::array<const char *, 3> dataStores{{"keydb",
+                                                  "keydb_get",
+                                                  "keydb_scan"}};
 enum DataStoreNamespace {
     NS_KEYDB = 0,
     NS_GET = 1,
     NS_SCAN = 2,
     NS_MAX = NS_SCAN
 };
-static_assert(dataStores.size() == NS_MAX + 1, "DataStoreNamespace enum and dataStores array must be in sync!");
+static_assert(dataStores.size() == NS_MAX + 1,
+              "DataStoreNamespace enum and dataStores array must be in sync!");
 
 inline SharemindDataStoreFactory & getDataStoreFactory(
         SharemindModuleApi0x1SyscallContext * c)
@@ -150,10 +156,9 @@ template <typename T>
 inline T & getItem(SharemindModuleApi0x1SyscallContext * c, const char * name) {
     auto * store = getDataStore(c, NS_KEYDB);
     T * item = static_cast<T *>(store->get(store, name));
-    if (!item) {
-        throw std::logic_error(
-                "Cannot get some process instance specific data. Make sure to call keydb_connect!");
-    }
+    if (!item)
+        throw std::logic_error("Cannot get some process instance specific "
+                               "data. Make sure to call keydb_connect!");
     return *item;
 }
 
@@ -322,13 +327,13 @@ SHAREMIND_DEFINE_EXCEPTION_CONST_MSG_NOINLINE(ConversionException,
 #endif
 #pragma GCC diagnostic pop
 
-inline SynchronousRedisClient & getClient(SharemindModuleApi0x1SyscallContext * c) {
-    return getItem<SynchronousRedisClient>(c, "Client");
-}
+inline SynchronousRedisClient & getClient(
+        SharemindModuleApi0x1SyscallContext * c)
+{ return getItem<SynchronousRedisClient>(c, "Client"); }
 
-inline sharemind::ModuleData::HostConfiguration & getHostConf(SharemindModuleApi0x1SyscallContext * c) {
-    return getItem<sharemind::ModuleData::HostConfiguration>(c, "HostConfiguration");
-}
+inline ModuleData::HostConfiguration & getHostConf(
+        SharemindModuleApi0x1SyscallContext * c)
+{ return getItem<ModuleData::HostConfiguration>(c, "HostConfiguration"); }
 
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   char const * const pattern,
@@ -375,7 +380,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     }
 
     std::vector<std::string> toDelete;
-    if (sharemind::intersection(orderedKeys, toDelete, c)) {
+    if (intersection(orderedKeys, toDelete, c)) {
         if (!toDelete.empty()) {
             std::ostringstream oss;
             oss << "DEL";
@@ -500,7 +505,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
         // store returned data in heap
-        auto heapString(sharemind::makeUnique<std::string>(
+        auto heapString(makeUnique<std::string>(
                             getClient(c).command("GET %s", key).asString()));
         returnValue->uint64[0] = heapString->size();
 
@@ -601,7 +606,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
     }
 
     // Allocate storage for scan result:
-    auto newScan(sharemind::makeUnique<ScanCursor>());
+    auto newScan(makeUnique<ScanCursor>());
     static auto const deleter =
             [](void * const p) noexcept
             { delete static_cast<ScanCursor *>(p); };
