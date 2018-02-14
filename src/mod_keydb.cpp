@@ -98,6 +98,8 @@ SHAREMIND_MODULE_API_0x1_SYSCALL_DEFINITIONS(
     SAMENAME(keydb_get),
     SAMENAME(keydb_get_size),
     SAMENAME(keydb_scan),
+    SAMENAME(keydb_scan_cursor_pop),
+    SAMENAME(keydb_scan_cursor_free),
     SAMENAME(keydb_set)
 );
 

@@ -30,6 +30,7 @@
 #include <memory>
 #include <set>
 #include <sharemind/AccessControlProcessFacility.h>
+#include <sharemind/AssertReturn.h>
 #include <sharemind/datastoreapi.h>
 #include <sharemind/DebugOnly.h>
 #include <sharemind/ExceptionMacros.h>
@@ -393,6 +394,11 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     return false;
 }
 
+struct ScanCursor {
+    std::vector<std::string> keys;
+    decltype(keys.size()) cursor = 0u;
+};
+
 } /* namespace { */
 
 SHAREMIND_DEFINE_SYSCALL(keydb_connect, 0, false, 0, 1,
@@ -559,101 +565,152 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
         getClient(c).command("DEL %s", key);
     );
 
+/*
+    System call arguments: <none>
+    System call constant references:
+        # The zero-terminated search pattern.
+    System call references:
+        # Reference to an uint64 where the size of the first key name is stored
+          if matching keys were found.
+    Returns an uint64 scan cursor, 0 if no matching keys were found.
+*/
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
-        (void) args;
-        /** \todo It were easier and faster to take an uint64 argument and
-                  return an uint64 instead of messing with references. */
-        using ClCursor = std::uint64_t;
-        auto * const clCursorData = refs[0u].pData;
-        assert(clCursorData);
-        if (refs[0u].size != sizeof(ClCursor))
-            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-        ClCursor const cl_cursor =
-                [clCursorData]() noexcept {
-                    ClCursor r;
-                    std::memcpy(&r, clCursorData, sizeof(r));
-                    return r;
-                }();
-        auto const setClCursor =
-                [clCursorData](ClCursor const newValue) noexcept
-                { std::memcpy(clCursorData, &newValue, sizeof(newValue)); };
+    (void) args;
 
-        auto * store = getDataStore(c, NS_SCAN);
+    using ReturnSizeType = std::decay<decltype(returnValue->uint64[0u])>::type;
+    if (refs[0u].size != sizeof(ReturnSizeType))
+        return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+    if (crefs[0u].size < 1u)
+        return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+    auto const pattern = static_cast<char const *>(crefs[0u].pData);
+    if (pattern[crefs[0].size - 1u] != '\0')
+        return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+    SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
 
-        std::vector<std::string> * scan;
-        char uid[21]; // 2^64 == 18 446 744 073 709 551 616
-        if (cl_cursor) {
-            std::sprintf(uid, "%" PRIu64, cl_cursor);
+    auto & store = *assertReturn(getDataStore(c, NS_SCAN));
+
+    // Calculate next free ID (0 is reserved for no results):
+    char idString[21]; // 2^64 == 18 446 744 073 709 551 616
+    std::uint64_t id = 1u;
+    for (;;) { /// \todo Refactor from linear to at least logarithmic complexity
+        std::sprintf(idString, "%" PRIu64, id);
+        if (!store.get(&store, idString))
+            break;
+        if (!++id)
+            return SHAREMIND_MODULE_API_0x1_OUT_OF_MEMORY;
+    }
+
+    // Allocate storage for scan result:
+    auto newScan(sharemind::makeUnique<ScanCursor>());
+    static auto const deleter =
+            [](void * const p) noexcept
+            { delete static_cast<ScanCursor *>(p); };
+    if (!store.set(&store, idString, newScan.get(), +deleter)) {
+        newScan.release();
+        /// \todo maybe should return something else? C interfaces... ;(
+        return SHAREMIND_MODULE_API_0x1_OUT_OF_MEMORY;
+    }
+    ScanCursor * const scanCursor = newScan.release();
+
+    /* Run consensus because scan on redis does not guarantee order of
+       keys: */
+    try {
+        scanAndClean(c, pattern, scanCursor->keys, true);
+    } catch (...) {
+        SHAREMIND_DEBUG_ONLY(auto const r =) store.remove(&store, idString);
+        assert(r);
+        throw;
+    }
+
+    if (scanCursor->keys.empty()) {
+        SHAREMIND_DEBUG_ONLY(auto const r =) store.remove(&store, idString);
+        assert(r);
+        returnValue->uint64[0u] = 0u;
+    } else {
+        // Return cursor ID:
+        assert(id != 0u);
+        returnValue->uint64[0u] = id;
+
+        // Store first element size in refs[0u]:
+        auto const elemSize = scanCursor->keys.front().size();
+        static_assert(std::numeric_limits<decltype(elemSize)>::max()
+                      <= std::numeric_limits<ReturnSizeType>::max(), "");
+        ReturnSizeType const retElemSize = elemSize;
+        std::memcpy(refs[0u].pData, &retElemSize, sizeof(retElemSize));
+    }
+);
+
+/*
+    System call arguments:
+        # An uint64 scan cursor.
+    System call constant references: <none>
+    System call references:
+        # Reference to an array of bytes where the key name should be copied to.
+          At most max(size of reference, size of key name) bytes are copied to
+          the beginning of this reference.
+    Returns an uint64 size of the next key name.
+    Notes: Also deallocates the scan cursor if the all the elements will be
+           popped as a result of the call.
+*/
+SHAREMIND_DEFINE_SYSCALL(keydb_scan_cursor_pop, 1, true, 1, 0,
+    auto const resultIndex = args[0u].uint64[0u];
+    if (resultIndex == 0u)
+        return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+
+    char id[21]; // 2^64 == 18 446 744 073 709 551 616
+    std::sprintf(id, "%" PRIu64, resultIndex);
+    auto & store = *assertReturn(getDataStore(c, NS_SCAN));
+    if (auto * value = store.get(&store, id)) {
+        auto & scanCursor = *static_cast<ScanCursor *>(value);
+        assert(scanCursor.cursor < scanCursor.keys.size());
+        auto & elem = scanCursor.keys[scanCursor.cursor];
+        assert(!elem.empty());
+        auto const elemSize = elem.size();
+        auto const refSize = refs[0u].size;
+        if (refSize < elemSize) {
+            std::memcpy(refs[0u].pData, elem.data(), refSize);
         } else {
-            uid[0u] = '1';
-            uid[1u] = '\0';
+            std::memcpy(refs[0u].pData, elem.data(), elemSize);
         }
 
-        if (!cl_cursor) { // if a new cursor!
-            if (crefs[0].size < 1u)
-                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-            auto const pattern = static_cast<char const *>(crefs[0u].pData);
-            if (pattern[crefs[0].size - 1u] != '\0')
-                return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-            SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
-
-            ClCursor id = 1u;
-            while (store->get(store, uid)) {
-                ++id;
-                std::sprintf(uid, "%" PRIu64, id);
-            }
-            auto newScan(sharemind::makeUnique<std::vector<std::string> >());
-            static auto const deleter =
-                    [](void * const p) noexcept
-                    { delete static_cast<std::vector<std::string> *>(p); };
-            if (!store->set(store, uid, newScan.get(), +deleter)) {
-                newScan.release();
-                /// \todo maybe should return something else? C interfaces... ;(
-                return SHAREMIND_MODULE_API_0x1_OUT_OF_MEMORY;
-            }
-            scan = newScan.release();
-            mod.logger.debug() << "keydb_scan: new cursor (" << uid << ')';
-
-            /* Run consensus because scan on redis does not guarantee order of
-               keys: */
-            try {
-                scanAndClean(c, pattern, *scan, true);
-            } catch (...) {
-                SHAREMIND_DEBUG_ONLY(auto const r =) store->remove(store, uid);
-                assert(r);
-                throw;
-            }
-            setClCursor(id);
-        } else { // existing cursor
-            scan = static_cast<std::vector<std::string> *>(
-                       store->get(store, uid));
-        }
-
-        /** \bug If the public allocations below fail, we essentially just skip
-                 that element. This system call needs a better interface. */
-        assert(scan);
-        if (!scan->empty()) {
-            auto const & data = scan->back();
-            auto const mem_hndl = c->publicAlloc(c, data.size() + 1u);
-            if (mem_hndl) {
-                char * const ptr =
-                        static_cast<char *>(c->publicMemPtrData(c, mem_hndl));
-                std::memcpy(ptr, data.c_str(), data.size());
-                // add the zero byte at the end
-                *(ptr + data.size()) = '\0';
-            }
-            returnValue->uint64[0] = mem_hndl;
-            scan->pop_back();
+        /* If we have consumed all data, free the results. Otherwise
+           just clear all key strings we've passed without removing
+           them from the underlying vector container (which could be
+           expensive). */
+        ++scanCursor.cursor;
+        if (scanCursor.cursor >= scanCursor.keys.size()) {
+            store.remove(&store, id);
+            returnValue->uint64[0u] = 0u;
         } else {
-            setClCursor(0u);
-            auto const mem_hndl = c->publicAlloc(c, 1u);
-            if (mem_hndl)
-                (*static_cast<char *>(c->publicMemPtrData(c, mem_hndl))) = '\0';
-            returnValue->uint64[0] = mem_hndl;
-            store->remove(store, uid);
-            mod.logger.debug() << "keydb_scan: del cursor (" << uid << ')';
+            elem.clear();
+
+            // Return next element size:
+            using R = std::decay<decltype(returnValue->uint64[0u])>::type;
+            static_assert(std::numeric_limits<decltype(elemSize)>::max()
+                          <= std::numeric_limits<R>::max(), "");
+            assert(!scanCursor.keys[scanCursor.cursor].empty());
+            returnValue->uint64[0u] = scanCursor.keys[scanCursor.cursor].size();
         }
-    );
+    } else {
+        return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
+    }
+);
+
+/*
+    System call arguments:
+        # The scan cursor to deallocate.
+    System call constant references: <none>
+    System call references: <none>
+    Doesn't returns any value.
+*/
+SHAREMIND_DEFINE_SYSCALL(keydb_scan_cursor_free, 1u, false, 0u, 0u,
+    if (args[0u].uint64[0u] != 0u) {
+        char id[21]; // 2^64 == 18 446 744 073 709 551 616
+        std::sprintf(id, "%" PRIu64, args[0u].uint64[0u]);
+        auto & store = *assertReturn(getDataStore(c, NS_SCAN));
+        store.remove(&store, id);
+    }
+);
 
 SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
         (void) args;
