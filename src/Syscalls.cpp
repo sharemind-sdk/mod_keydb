@@ -368,7 +368,8 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                                        pattern,
                                        hostconf.scanCount.c_str());
             }
-            // while the next response arrives store the prevoius response into set
+            /* While the next response arrives store the prevoius response into
+               set: */
             auto const replies(parts[1].asArray());
             for (auto & r : replies)
                 keys.emplace(r.asString());
@@ -390,7 +391,9 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
         }
         if (cleanUpOrderedKeys) {
             for (auto & k : toDelete) {
-                auto it = std::lower_bound(orderedKeys.begin(), orderedKeys.end(), k);
+                auto it = std::lower_bound(orderedKeys.begin(),
+                                           orderedKeys.end(),
+                                           k);
                 orderedKeys.erase(it);
             }
         }
@@ -536,8 +539,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         std::sprintf(id, "%" PRIu64, args[0].uint64[0]);
         auto const * data = static_cast<std::string *>(store->get(store, id));
         if (!data)
-            throw std::logic_error(
-                    "Cannot get instance of data, was keydb_get_size called before?");
+            throw std::logic_error("Cannot get instance of data, was "
+                                   "keydb_get_size called before?");
 
         mod.logger.debug() << "reference size, data size: "
             << refs[0].size << ", " << data->size();
