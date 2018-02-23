@@ -96,6 +96,7 @@ DEFINE_STATIC_PREDICATE(rulesetName,  "sharemind:keydb")
 DEFINE_STATIC_PREDICATE(readWildcard,  "*:read:*")
 DEFINE_STATIC_PREDICATE(writeWildcard, "*:write:*")
 DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
+DEFINE_STATIC_PREDICATE(allWildcards,  "*:*:*")
 #undef DEFINE_STATIC_PREDICATE
 
 #define SHAREMIND_CHECK_PERMISSION(moduleContext, key, permission) \
@@ -115,8 +116,12 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
                     rulesetNamePredicate, \
                     concat(key, ":" #permission ":", programName), \
                     concat(key, ":" #permission ":*"), \
+                    concat(key, ":*:", programName), \
+                    concat(key, ":*:*"), \
                     concat("*:" #permission ":", programName), \
-                    permission ## WildcardPredicate \
+                    permission ## WildcardPredicate, \
+                    concat("*:*:", programName), \
+                    allWildcardsPredicate \
                 ) != AccessResult::Allowed) \
             return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
     } while(false)
