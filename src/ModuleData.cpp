@@ -28,8 +28,9 @@ namespace pt = boost::property_tree;
 
 namespace sharemind {
 
-ModuleData::ModuleData(const LogHard::Logger & logger, SharemindConsensusFacility * cf)
-    : logger{logger}
+ModuleData::ModuleData(LogHard::Logger const & logger_,
+                       SharemindConsensusFacility * cf)
+    : logger(logger_)
     , consensusFacility(cf)
 {
     if (consensusFacility)
