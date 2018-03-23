@@ -53,6 +53,8 @@
 #define SHAREMIND_DEFINE_SYSCALL(name,nargs,rv,nrefs,ncrefs,...) \
     SHAREMIND_EXTERN_C_BEGIN \
     SHAREMIND_MODULE_API_0x1_SYSCALL(name, args, num_args, refs, crefs, \
+                                     returnValue, c); \
+    SHAREMIND_MODULE_API_0x1_SYSCALL(name, args, num_args, refs, crefs, \
                                      returnValue, c) \
     { \
         if (!SyscallArgs<nargs,rv,nrefs,ncrefs>::check(num_args, \
