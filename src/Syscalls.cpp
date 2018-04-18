@@ -101,12 +101,14 @@ DEFINE_STATIC_PREDICATE(scanWildcard,  "*:scan:*")
 DEFINE_STATIC_PREDICATE(allWildcards,  "*:*:*")
 #undef DEFINE_STATIC_PREDICATE
 
-#define SHAREMIND_CHECK_PERMISSION(moduleContext, key, permission) \
+#define SHAREMIND_DEFINE_PROCESS_FACILITY \
+    auto const * const processFacility = \
+            getFacility<SharemindProcessFacility>(*c, "ProcessFacility"); \
+    if (!processFacility) \
+        return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY
+
+#define SHAREMIND_CHECK_PERMISSION_(moduleContext, key, permission) \
     do { \
-        auto const * const processFacility = \
-                getFacility<SharemindProcessFacility>(*c, "ProcessFacility"); \
-        if (!processFacility) \
-            return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
         auto const programName(processFacility->programName(processFacility)); \
         auto const * const aclFacility = \
                 getFacility<AccessControlProcessFacility>( \
@@ -127,6 +129,10 @@ DEFINE_STATIC_PREDICATE(allWildcards,  "*:*:*")
                 ) != AccessResult::Allowed) \
             return SHAREMIND_MODULE_API_0x1_ACCESS_DENIED; \
     } while(false)
+
+#define SHAREMIND_CHECK_PERMISSION(moduleContext, key, permission) \
+    SHAREMIND_DEFINE_PROCESS_FACILITY; \
+    SHAREMIND_CHECK_PERMISSION_(moduleContext, key, permission)
 
 
 // names used for specific datastore namespaces
@@ -345,6 +351,7 @@ inline ModuleData::HostConfiguration & getHostConf(
 bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                   char const * const pattern,
                   std::vector<std::string> & orderedKeys,
+                  SharemindProcessFacility const & processFacility,
                   bool cleanUpOrderedKeys = false)
 {
     auto & client = getClient(c);
@@ -388,7 +395,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
     }
 
     std::vector<std::string> toDelete;
-    if (intersection(orderedKeys, toDelete, c)) {
+    if (intersection(orderedKeys, toDelete, c, processFacility)) {
         if (!toDelete.empty()) {
             std::ostringstream oss;
             oss << "DEL";
@@ -592,6 +599,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_del, 0, false, 0, 1,
 SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
     (void) args;
 
+    SHAREMIND_DEFINE_PROCESS_FACILITY;
+
     using ReturnSizeType = std::decay<decltype(returnValue->uint64[0u])>::type;
     if (refs[0u].size != sizeof(ReturnSizeType))
         return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
@@ -600,7 +609,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
     auto const pattern = static_cast<char const *>(crefs[0u].pData);
     if (pattern[crefs[0].size - 1u] != '\0')
         return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-    SHAREMIND_CHECK_PERMISSION(c, pattern, scan);
+    SHAREMIND_CHECK_PERMISSION_(c, pattern, scan);
 
     auto & store = *assertReturn(getDataStore(c, NS_SCAN));
 
@@ -630,7 +639,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
     /* Run consensus because scan on redis does not guarantee order of
        keys: */
     try {
-        scanAndClean(c, pattern, scanCursor->keys, true);
+        scanAndClean(c, pattern, scanCursor->keys, *processFacility, true);
     } catch (...) {
         SHAREMIND_DEBUG_ONLY(auto const r =) store.remove(&store, idString);
         assert(r);
@@ -731,6 +740,8 @@ SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
         (void) args;
         mod.logger.debug() << "keydb_clean";
 
+        SHAREMIND_DEFINE_PROCESS_FACILITY;
+
         if (crefs[0].size < 1)
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         auto const pattern = static_cast<char const *>(crefs[0].pData);
@@ -738,5 +749,6 @@ SHAREMIND_DEFINE_SYSCALL(keydb_clean, 0, true, 0, 1,
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
 
         std::vector<std::string> orderedKeys;
-        returnValue->uint64[0] = scanAndClean(c, pattern, orderedKeys) ? 1 : 0;
+        returnValue->uint64[0] =
+                scanAndClean(c, pattern, orderedKeys, *processFacility) ? 1 : 0;
     );

@@ -21,6 +21,7 @@
 #define SHAREMIND_MOD_KEYDB_INTERSECTION_H
 
 #include <sharemind/libconsensusservice.h>
+#include <sharemind/libprocessfacility.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/visibility.h>
 #include <string>
@@ -33,7 +34,8 @@ extern SharemindOperationType const intersectionOperation;
 // keys must be sorted!
 bool intersection(const std::vector<std::string> & keys,
         std::vector<std::string> & toDelete,
-        const SharemindModuleApi0x1SyscallContext * c)
+        const SharemindModuleApi0x1SyscallContext * c,
+        SharemindProcessFacility const & processFacility)
     SHAREMIND_VISIBILITY_HIDDEN;
 
 } /* namespace sharemind { */

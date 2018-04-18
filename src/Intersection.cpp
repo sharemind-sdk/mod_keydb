@@ -21,7 +21,6 @@
 #include <LogHard/Logger.h>
 #include <sharemind/EndianMacros.h>
 #include <sharemind/libconsensusservice.h>
-#include <sharemind/libprocessfacility.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/PotentiallyVoidTypeInfo.h>
 #include "Intersection.h"
@@ -201,7 +200,8 @@ SharemindOperationType const intersectionOperation = {
 
 bool intersection(const std::vector<std::string> & keys,
                   std::vector<std::string> & toDelete,
-                  const SharemindModuleApi0x1SyscallContext * c)
+                  const SharemindModuleApi0x1SyscallContext * c,
+                  SharemindProcessFacility const & processFacility)
 {
     assert(std::is_sorted(keys.begin(), keys.end()) && "intersection called with unsorted keys");
     auto & mod = *static_cast<const ModuleData *>(c->moduleHandle);
@@ -210,12 +210,9 @@ bool intersection(const std::vector<std::string> & keys,
         return true;
     }
 
-    using CPF = SharemindProcessFacility;
-    auto * processFacility = static_cast<const CPF *>(c->process_internal);
-
-    auto globalIdSize = processFacility->globalIdSize(processFacility);
+    auto globalIdSize = processFacility.globalIdSize(&processFacility);
     mod.logger.debug() << "keydb_intersection ";
-    const void * globalId = processFacility->globalId(processFacility);
+    const void * globalId = processFacility.globalId(&processFacility);
 
     if (!globalId) {
         mod.logger.debug() << "keydb_intersection: no global id";
