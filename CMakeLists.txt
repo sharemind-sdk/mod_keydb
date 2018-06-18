@@ -94,7 +94,7 @@ SharemindAddComponentPackage("debug"
     DESCRIPTION "Sharemind KeyDB module debug symbols"
     DEB_SECTION "debug"
     DEB_DEPENDS
-        "libsharemind-mod-keydb (= ${SharemindModKeyDb_VERSION})"
+        "libsharemind-mod-keydb (= ${SharemindModKeyDb_DEB_lib_PACKAGE_VERSION})"
 )
 SharemindPackagingFinalize()
 
