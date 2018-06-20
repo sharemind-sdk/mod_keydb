@@ -37,7 +37,7 @@ FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.1.0 REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
-FIND_PACKAGE(SharemindModuleApis REQUIRED)
+FIND_PACKAGE(SharemindModuleApis 1.0.0 REQUIRED)
 FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
 
 
