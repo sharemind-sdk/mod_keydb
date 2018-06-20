@@ -33,7 +33,7 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
 FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(hiredis REQUIRED)
 FIND_PACKAGE(LogHard REQUIRED)
-FIND_PACKAGE(SharemindLibAccessControlProcessFacility REQUIRED)
+FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.1.0 REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
