@@ -32,7 +32,7 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(hiredis REQUIRED)
-FIND_PACKAGE(LogHard REQUIRED)
+FIND_PACKAGE(LogHard 0.3.0 REQUIRED)
 FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.1.0 REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
 FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
@@ -84,7 +84,7 @@ SharemindAddComponentPackage("lib"
     DESCRIPTION "Sharemind KeyDB module"
     DEB_SECTION "libs"
     DEB_DEPENDS
-        "libloghard (>= 0.1.0)"
+        "libloghard (>= 0.3.0)"
         "libhiredis${HIREDIS_VERSION}"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
