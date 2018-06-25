@@ -23,7 +23,7 @@ PROJECT(SharemindModKeyDb VERSION 0.2.1 LANGUAGES CXX)
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/config.local" OPTIONAL)
 INCLUDE("${CMAKE_CURRENT_BINARY_DIR}/config.local" OPTIONAL)
 
-FIND_PACKAGE(SharemindCMakeHelpers REQUIRED)
+FIND_PACKAGE(SharemindCMakeHelpers 1.2 REQUIRED)
 
 SharemindSetProjectVersion()
 
@@ -32,13 +32,13 @@ SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost REQUIRED)
 FIND_PACKAGE(hiredis REQUIRED)
-FIND_PACKAGE(LogHard REQUIRED)
-FIND_PACKAGE(SharemindLibAccessControlProcessFacility REQUIRED)
-FIND_PACKAGE(SharemindLibConsensusService REQUIRED)
-FIND_PACKAGE(SharemindLibDataStoreManager REQUIRED)
-FIND_PACKAGE(SharemindLibProcessFacility REQUIRED)
-FIND_PACKAGE(SharemindModuleApis REQUIRED)
-FIND_PACKAGE(SharemindPdkHeaders REQUIRED)
+FIND_PACKAGE(LogHard 0.3.0 REQUIRED)
+FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.1.0 REQUIRED)
+FIND_PACKAGE(SharemindLibConsensusService 0.1.0 REQUIRED)
+FIND_PACKAGE(SharemindLibDataStoreManager 0.1.0 REQUIRED)
+FIND_PACKAGE(SharemindLibProcessFacility 0.1.0 REQUIRED)
+FIND_PACKAGE(SharemindModuleApis 1.0.0 REQUIRED)
+FIND_PACKAGE(SharemindPdkHeaders 0.2.0 REQUIRED)
 
 
 # The module:
@@ -84,7 +84,7 @@ SharemindAddComponentPackage("lib"
     DESCRIPTION "Sharemind KeyDB module"
     DEB_SECTION "libs"
     DEB_DEPENDS
-        "libloghard (>= 0.1.0)"
+        "libloghard (>= 0.3.0)"
         "libhiredis${HIREDIS_VERSION}"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
