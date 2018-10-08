@@ -63,7 +63,7 @@
                                                        returnValue)) \
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL; \
         assert(c->moduleHandle); \
-        auto & mod = *static_cast<ModuleData * const>(c->moduleHandle); \
+        auto & mod = *static_cast<ModuleData *>(c->moduleHandle); \
         try { \
             __VA_ARGS__ \
             return SHAREMIND_MODULE_API_0x1_OK; \
