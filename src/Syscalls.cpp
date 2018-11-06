@@ -382,7 +382,7 @@ bool scanAndClean(SharemindModuleApi0x1SyscallContext * c,
                                        pattern,
                                        hostconf.scanCount.c_str());
             }
-            /* While the next response arrives store the prevoius response into
+            /* While the next response arrives store the previous response into
                set: */
             auto const replies(parts[1].asArray());
             for (auto & r : replies)
