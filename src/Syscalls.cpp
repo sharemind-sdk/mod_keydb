@@ -36,7 +36,6 @@
 #include <sharemind/ExceptionMacros.h>
 #include <sharemind/Concat.h>
 #include <sharemind/libprocessfacility.h>
-#include <sharemind/MakeUnique.h>
 #include <sharemind/module-apis/api_0x1.h>
 #include <sharemind/Range.h>
 #include <sharemind/SyscallsCommon.h>
@@ -522,7 +521,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get_size, 1, true, 0, 1,
         mod.logger.debug() << "keydb_get_size with key \"" << key << '\"';
 
         // store returned data in heap
-        auto heapString(makeUnique<std::string>(
+        auto heapString(std::make_unique<std::string>(
                             getClient(c).command("GET %s", key).asString()));
         returnValue->uint64[0] = heapString->size();
 
@@ -625,7 +624,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_scan, 0, true, 1, 1,
     }
 
     // Allocate storage for scan result:
-    auto newScan(makeUnique<ScanCursor>());
+    auto newScan(std::make_unique<ScanCursor>());
     static auto const deleter =
             [](void * const p) noexcept
             { delete static_cast<ScanCursor *>(p); };
