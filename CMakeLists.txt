@@ -40,7 +40,7 @@ FIND_PACKAGE(SharemindPdkHeaders 0.2.0 REQUIRED)
 
 
 # The module:
-SharemindSetCxx11CompileOptions()
+SharemindSetCxx14CompileOptions()
 FILE(GLOB_RECURSE SharemindModKeyDb_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 FILE(GLOB_RECURSE SharemindModKeyDb_HEADERS
