@@ -23,20 +23,19 @@ PROJECT(SharemindModKeyDb VERSION 0.2.4 LANGUAGES CXX)
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/config.local" OPTIONAL)
 INCLUDE("${CMAKE_CURRENT_BINARY_DIR}/config.local" OPTIONAL)
 
-FIND_PACKAGE(SharemindCMakeHelpers 1.4 REQUIRED)
-
+FIND_PACKAGE(SharemindCMakeHelpers 1.6 REQUIRED)
 
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
 FIND_PACKAGE(Boost 1.62 REQUIRED)
 FIND_PACKAGE(hiredis REQUIRED)
-FIND_PACKAGE(LogHard 0.3.0 REQUIRED)
+FIND_PACKAGE(LogHard 0.5.0 REQUIRED)
 FIND_PACKAGE(SharemindDataStoreApi 0.1.0 REQUIRED)
-FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.1.0 REQUIRED)
-FIND_PACKAGE(SharemindLibConsensusService 0.1.0 REQUIRED)
-FIND_PACKAGE(SharemindLibProcessFacility 0.1.0 REQUIRED)
-FIND_PACKAGE(SharemindModuleApis 1.0.0 REQUIRED)
-FIND_PACKAGE(SharemindPdkHeaders 0.2.0 REQUIRED)
+FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.3.0 REQUIRED)
+FIND_PACKAGE(SharemindLibConsensusService 0.2.0 REQUIRED)
+FIND_PACKAGE(SharemindLibProcessFacility 0.2.0 REQUIRED)
+FIND_PACKAGE(SharemindModuleApis 1.1.0 REQUIRED)
+FIND_PACKAGE(SharemindPdkHeaders 0.5.0 REQUIRED)
 
 
 # The module:
@@ -51,27 +50,20 @@ SharemindAddSharedLibrary(ModKeyDb
     SOURCES
         ${SharemindModKeyDb_SOURCES}
         ${SharemindModKeyDb_HEADERS}
-    INCLUDE_DIRECTORIES
-        ${Boost_INCLUDE_DIRS}
-        ${HIREDIS_INCLUDE_DIRS}
-        ${LogHard_INCLUDE_DIRS}
-        ${SharemindLibAccessControlProcessFacility_INCLUDE_DIRS}
-        ${SharemindLibConsensusService_INCLUDE_DIRS}
-        ${SharemindLibProcessFacility_INCLUDE_DIRS}
-        ${SharemindModuleApis_INCLUDE_DIRS}
-        ${SharemindPdkHeaders_INCLUDE_DIRS}
-    LEGACY_DEFINITIONS
-        ${LogHard_DEFINITIONS}
-        ${SharemindLibAccessControlProcessFacility_DEFINITIONS}
-        ${SharemindLibConsensusService_DEFINITIONS}
-        ${SharemindLibProcessFacility_DEFINITIONS}
-        ${SharemindPdkHeaders_DEFINITIONS}
-    LINK_LIBRARIES
-        ${Boost_LIBRARIES}
-        ${HIREDIS_LIBRARIES}
-        ${LogHard_LIBRARIES}
 )
-TARGET_LINK_LIBRARIES(ModKeyDb PRIVATE Sharemind::DataStoreApi)
+TARGET_INCLUDE_DIRECTORIES(ModKeyDb PRIVATE ${HIREDIS_INCLUDE_DIRS})
+TARGET_LINK_LIBRARIES(ModKeyDb
+    PRIVATE
+        Boost::boost
+        ${HIREDIS_LIBRARIES}
+        LogHard::LogHard
+        Sharemind::LibAccessControlProcessFacility
+        Sharemind::LibConsensusService
+        Sharemind::DataStoreApi
+        Sharemind::LibProcessFacility
+        Sharemind::ModuleApis
+        Sharemind::PdkHeaders
+    )
 
 # Configuration files:
 INSTALL(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/packaging/configs/sharemind/"
@@ -86,7 +78,7 @@ SharemindAddComponentPackage("lib"
     DESCRIPTION "Sharemind KeyDB module"
     DEB_SECTION "libs"
     DEB_DEPENDS
-        "libloghard (>= 0.3.0)"
+        "libloghard (>= 0.5.0)"
         "libhiredis${HIREDIS_VERSION}"
         "libstdc++6 (>= 4.8.0)"
         "libc6 (>= 2.19)"
