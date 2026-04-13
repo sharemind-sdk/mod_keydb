@@ -484,12 +484,7 @@ SHAREMIND_DEFINE_SYSCALL(keydb_set, 1, false, 0, 2,
         auto const value = static_cast<char const *>(crefs[1u].pData);
         bool const valueIsArray = args[0u].uint64[0u];
 
-        // arrays need size -1, scalars do not need it:
-        if (valueIsArray && (crefs[1u].size < 1u
-                             || value[crefs[1u].size - 1u] != '\0'))
-            return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
-        auto const valueSize =
-                valueIsArray ? crefs[1u].size - 1u : crefs[1u].size;
+        auto const valueSize = crefs[1u].size;
 
         SHAREMIND_CHECK_PERMISSION(c, key, write);
 
@@ -563,9 +558,9 @@ SHAREMIND_DEFINE_SYSCALL(keydb_get, 1, false, 1, 0,
         auto const dataSize = data->size();
         if (refSize == dataSize) {
             std::memcpy(refs[0u].pData, data->data(), dataSize);
-        } else if (refSize == dataSize + 1u) {
-            std::memcpy(refs[0u].pData, data->data(), dataSize);
-            (*(static_cast<char *>(refs[0u].pData) + dataSize)) = '\0';
+        // } else if (refSize == dataSize + 1u) {
+        //     std::memcpy(refs[0u].pData, data->data(), dataSize);
+        //     (*(static_cast<char *>(refs[0u].pData) + dataSize)) = '\0';
         } else {
             return SHAREMIND_MODULE_API_0x1_INVALID_CALL;
         }
