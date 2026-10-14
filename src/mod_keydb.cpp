@@ -69,6 +69,9 @@ SHAREMIND_MODULE_API_0x1_INITIALIZER(c) {
             delete mod;
             return SHAREMIND_MODULE_API_0x1_INVALID_MODULE_CONFIGURATION;
         }
+        if (!mod->accessControlEnabled)
+            logger.warning() << "Access control is disabled in the module "
+                                "configuration, all key accesses are allowed.";
 
         c->moduleHandle = mod;
         return SHAREMIND_MODULE_API_0x1_OK;

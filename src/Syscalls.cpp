@@ -108,6 +108,8 @@ DEFINE_STATIC_PREDICATE(allWildcards,  "*:*:*")
 
 #define SHAREMIND_CHECK_PERMISSION_(moduleContext, key, permission) \
     do { \
+        if (!mod.accessControlEnabled) \
+            break; \
         auto const programName(processFacility->programName(processFacility)); \
         auto const * const aclFacility = \
                 getFacility<AccessControlProcessFacility>( \

@@ -57,6 +57,7 @@ public: /* Types: */
     const LogHard::Logger logger;
     SharemindConsensusFacility *consensusFacility;
     SimpleUnorderedStringMap<HostConfiguration> hostMap;
+    bool accessControlEnabled = true;
 };
 
 } /* namespace sharemind { */

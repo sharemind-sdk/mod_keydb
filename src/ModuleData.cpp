@@ -56,6 +56,8 @@ bool ModuleData::load(const char * filename, std::string & errorMsg) {
                             v.second.get<std::uint16_t>("ScanCount", 25),
                             v.second.get<bool>("DisableOverwrite", false)
                             });
+            } else if (section == "AccessControl") {
+                accessControlEnabled = v.second.get<bool>("Enabled", true);
             }
         }
     } catch (const pt::ini_parser_error & error) {
