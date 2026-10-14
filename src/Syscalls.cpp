@@ -110,13 +110,13 @@ DEFINE_STATIC_PREDICATE(allWildcards,  "*:*:*")
     do { \
         if (!mod.accessControlEnabled) \
             break; \
-        auto const programName(processFacility->programName(processFacility)); \
         auto const * const aclFacility = \
                 getFacility<AccessControlProcessFacility>( \
                                 *c, \
                                 "AccessControlProcessFacility"); \
         if (!aclFacility) \
             return SHAREMIND_MODULE_API_0x1_MISSING_FACILITY; \
+        auto const programName(processFacility->programName(processFacility)); \
         if (aclFacility->check( \
                     rulesetNamePredicate, \
                     concat(key, ":" #permission ":", programName), \
