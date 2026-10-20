@@ -18,12 +18,12 @@
 #
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.18)
-PROJECT(SharemindModKeyDb VERSION 0.4.0 LANGUAGES CXX)
+PROJECT(SharemindModKeyDb VERSION 0.5.0 LANGUAGES CXX)
 
 INCLUDE("${CMAKE_CURRENT_SOURCE_DIR}/config.local" OPTIONAL)
 INCLUDE("${CMAKE_CURRENT_BINARY_DIR}/config.local" OPTIONAL)
 
-FIND_PACKAGE(SharemindCMakeHelpers 1.6 REQUIRED)
+FIND_PACKAGE(SharemindCMakeHelpers 1.8 REQUIRED)
 
 SET(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMakeIncludes/"
                       ${CMAKE_MODULE_PATH})
@@ -35,7 +35,7 @@ FIND_PACKAGE(SharemindLibAccessControlProcessFacility 0.4.0 REQUIRED)
 FIND_PACKAGE(SharemindLibConsensusService 0.2.0 REQUIRED)
 FIND_PACKAGE(SharemindLibProcessFacility 0.2.0 REQUIRED)
 FIND_PACKAGE(SharemindModuleApis 1.1.0 REQUIRED)
-FIND_PACKAGE(SharemindPdkHeaders 0.6.0 REQUIRED)
+FIND_PACKAGE(SharemindPdkHeaders 0.7.0 REQUIRED)
 
 
 # The module:
